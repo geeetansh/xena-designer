@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
 import { mapLayoutToOpenAISize } from '@/lib/utils';
-import { log, success, error as logError, startOperation, endOperation, formatFileSize } from '@/lib/logger';
+import { log, error as logError, success, uploadLog, startOperation, endOperation, formatFileSize } from '@/lib/logger';
 import { uploadFromBuffer } from './AssetsService';
 
 export type GeneratedImage = {
@@ -59,43 +59,14 @@ export async function fetchGeneratedImages(limit: number = 10, page: number = 1)
       return { images: [], totalCount: count || 0, hasMore: false };
     }
     
-    // Get all image IDs for batch reference fetch
-    const imageIds = images.map(img => img.id);
-    
-    // Batch fetch reference images in a separate query
-    // This prevents the SELECT query from becoming too complex
-    const { data: refImages, error: refError } = await supabase
-      .from('reference_images')
-      .select('image_id, id, url')
-      .in('image_id', imageIds)
-      .abortSignal(AbortSignal.timeout(5000)); // 5 second timeout
-    
-    if (refError) {
-      console.warn('Error fetching reference images:', refError);
-      // Continue without reference images - not critical
-    }
-    
-    // Create a map of image_id -> reference_images[] for quick lookups
-    const refImageMap: Record<string, ReferenceImage[]> = {};
-    if (refImages) {
-      refImages.forEach(ref => {
-        if (!refImageMap[ref.image_id]) {
-          refImageMap[ref.image_id] = [];
-        }
-        refImageMap[ref.image_id].push({
-          id: ref.id,
-          url: ref.url
-        });
-      });
-    }
-    
-    // Map images to the expected format
+    // Map images to the expected format - without trying to fetch reference_images
+    // since that table no longer exists
     const generatedImages: GeneratedImage[] = images.map(image => ({
       id: image.id,
       url: image.url,
       prompt: image.prompt,
       created_at: image.created_at,
-      reference_images: refImageMap[image.id] || [],
+      reference_images: [], // Empty array since reference_images table doesn't exist
       raw_json: image.raw_json,
       variation_group_id: image.variation_group_id,
       variation_index: image.variation_index
@@ -463,7 +434,7 @@ export async function generateImage(
       taskInserts.push({
         user_id: session.user.id,
         prompt: prompt,
-        status: 'pending',
+        status: "pending",
         batch_id: variationGroupId,
         total_in_batch: variants,
         batch_index: i
@@ -536,7 +507,7 @@ export async function generateImage(
         // Update all task records to 'failed' status
         for (let i = 0; i < variants; i++) {
           await supabase
-            .from('generation_tasks')
+            .from("generation_tasks")
             .update({
               status: 'failed',
               error_message: `API Error: ${errorDetails}`,

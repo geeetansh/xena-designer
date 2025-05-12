@@ -25,7 +25,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
-import { Download, FileJson, Eye, Image, Loader2, RefreshCcw, Trash2 } from 'lucide-react';
+import { Download, FileJson, Eye, Image, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -288,7 +288,7 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
             </>
           ) : (
             <>
-              <RefreshCcw className="h-3 w-3 md:h-4 md:w-4 mr-2" />
+              <RefreshCw className="h-3 w-3 md:h-4 md:w-4 mr-2" />
               Retry
             </>
           )}
@@ -340,7 +340,7 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
               </>
             ) : (
               <>
-                <RefreshCcw className="h-3 w-3 mr-1" />
+                <RefreshCw className="h-3 w-3 mr-1" />
                 Retry
               </>
             )}
