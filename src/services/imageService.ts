@@ -105,3 +105,29 @@ export async function fetchImageById(id: string): Promise<GeneratedImage> {
     throw error;
   }
 }
+
+export async function getUserCredits(): Promise<{ credits: number; creditsUsed: number }> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+    
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('credits, credits_used')
+      .eq('user_id', user.id)
+      .single();
+    
+    if (error) throw error;
+    
+    return {
+      credits: data?.credits || 0,
+      creditsUsed: data?.credits_used || 0
+    };
+  } catch (error) {
+    console.error('Error fetching user credits:', error);
+    return { credits: 0, creditsUsed: 0 };
+  }
+}
