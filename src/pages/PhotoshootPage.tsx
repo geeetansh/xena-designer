@@ -43,6 +43,7 @@ import {
 } from '@/services/photoshootService';
 import { ProductImagesModal } from '@/components/ProductImagesModal';
 import { ShopifyProduct } from '@/services/shopifyService';
+import { getCdnUrl } from '@/lib/utils';
 
 export default function PhotoshootPage() {
   const [photoshoots, setPhotoshoots] = useState<Photoshoot[]>([]);
@@ -372,6 +373,10 @@ export default function PhotoshootPage() {
           const isStuck = photoshoot.status === 'processing' && 
             new Date(photoshoot.updated_at).getTime() < Date.now() - 10 * 60 * 1000; // 10 minutes
           
+          // Convert URLs to CDN URLs
+          const productImageUrl = getCdnUrl(photoshoot.product_image_url);
+          const resultImageUrl = photoshoot.result_image_url ? getCdnUrl(photoshoot.result_image_url) : null;
+          
           return (
             <Card
               key={photoshoot.id}
@@ -384,17 +389,17 @@ export default function PhotoshootPage() {
                     {/* Product Image */}
                     <div className="w-14 h-14 relative rounded-md overflow-hidden border">
                       <LazyImage 
-                        src={photoshoot.product_image_url}
+                        src={productImageUrl}
                         alt="Product"
                         className="object-cover"
                       />
                     </div>
                     
                     {/* Result Image */}
-                    {photoshoot.result_image_url ? (
+                    {resultImageUrl ? (
                       <div className="w-14 h-14 relative rounded-md overflow-hidden border">
                         <LazyImage 
-                          src={photoshoot.result_image_url}
+                          src={resultImageUrl}
                           alt="Result"
                           className="object-cover"
                         />
@@ -543,6 +548,10 @@ export default function PhotoshootPage() {
             const isStuck = photoshoot.status === 'processing' && 
               new Date(photoshoot.updated_at).getTime() < Date.now() - 10 * 60 * 1000; // 10 minutes
             
+            // Convert URLs to CDN URLs
+            const productImageUrl = getCdnUrl(photoshoot.product_image_url);
+            const resultImageUrl = photoshoot.result_image_url ? getCdnUrl(photoshoot.result_image_url) : null;
+            
             return (
               <TableRow key={photoshoot.id} className={isStuck ? "bg-yellow-50/50 dark:bg-yellow-950/20" : ""}>
                 <TableCell className="font-medium pl-6">
@@ -558,17 +567,17 @@ export default function PhotoshootPage() {
                 <TableCell>
                   <div className="w-16 h-16 relative rounded-md overflow-hidden border">
                     <LazyImage 
-                      src={photoshoot.product_image_url}
+                      src={productImageUrl}
                       alt="Product"
                       className="object-cover"
                     />
                   </div>
                 </TableCell>
                 <TableCell>
-                  {photoshoot.result_image_url ? (
+                  {resultImageUrl ? (
                     <div className="w-16 h-16 relative rounded-md overflow-hidden border">
                       <LazyImage 
-                        src={photoshoot.result_image_url}
+                        src={resultImageUrl}
                         alt="Result"
                         className="object-cover"
                       />

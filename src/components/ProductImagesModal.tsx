@@ -19,6 +19,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { getCdnUrl } from '@/lib/utils';
 
 interface ProductImagesModalProps {
   product: ShopifyProduct | null;
@@ -108,7 +109,7 @@ export function ProductImagesModal({ product, open, onOpenChange }: ProductImage
                 <div className="relative rounded-lg overflow-hidden bg-neutral-50 dark:bg-neutral-900 border">
                   <div className="aspect-square">
                     <img 
-                      src={images[selectedImageIndex].url} 
+                      src={getCdnUrl(images[selectedImageIndex].url)} 
                       alt={images[selectedImageIndex].altText || `Product image ${selectedImageIndex + 1}`}
                       className="object-contain w-full h-full"
                       loading="lazy"
@@ -216,7 +217,7 @@ export function ProductImagesModal({ product, open, onOpenChange }: ProductImage
                       onClick={() => setSelectedImageIndex(index)}
                     >
                       <img 
-                        src={image.url} 
+                        src={getCdnUrl(image.url)} 
                         alt={image.altText || `Thumbnail ${index + 1}`}
                         className="object-cover w-full h-full"
                         loading="lazy"

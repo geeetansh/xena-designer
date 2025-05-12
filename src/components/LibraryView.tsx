@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Loader2, ImageIcon, UploadCloud, Trash2, Download, Info } from 'lucide-react';
 import { fetchAssets, uploadFromBuffer, deleteAsset, Asset } from '@/services/AssetsService';
+import { getCdnUrl } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -308,6 +309,9 @@ export function LibraryView({ onLibraryUpdated }: LibraryViewProps) {
               
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 md:gap-4">
                 {images.map((image) => {
+                  // Convert to CDN URL
+                  const cdnUrl = getCdnUrl(image.url);
+                  
                   return (
                     <div 
                       key={image.id} 
@@ -315,7 +319,7 @@ export function LibraryView({ onLibraryUpdated }: LibraryViewProps) {
                     >
                       <div className="aspect-square w-full h-full bg-background">
                         <img
-                          src={image.url} 
+                          src={cdnUrl} 
                           alt={image.filename || "Library image"}
                           className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                           loading="lazy"
@@ -431,7 +435,7 @@ export function LibraryView({ onLibraryUpdated }: LibraryViewProps) {
                 <div className="rounded-lg overflow-hidden bg-neutral-50 dark:bg-neutral-900 border">
                   <div className="relative aspect-square">
                     <img 
-                      src={selectedImage.url} 
+                      src={getCdnUrl(selectedImage.url)} 
                       alt={selectedImage.filename || "Library image"}
                       className="object-contain w-full h-full"
                       loading="lazy"

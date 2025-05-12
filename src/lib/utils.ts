@@ -44,3 +44,25 @@ export function mapLayoutToOpenAISize(layout: string): string {
       return '1024x1024'; // Default to square for reliability
   }
 }
+
+/**
+ * Converts a Supabase URL to CDN URL
+ * 
+ * @param url The original URL from Supabase
+ * @returns The CDN URL
+ */
+export function getCdnUrl(url: string): string {
+  try {
+    // Skip conversion for data URLs
+    if (url.startsWith('data:')) return url;
+    
+    // Use the URL constructor to parse the URL
+    const urlObj = new URL(url);
+    // Replace the host with cdn.xena.cx but keep the pathname
+    return `https://cdn.xena.cx${urlObj.pathname}`;
+  } catch (e) {
+    // If URL parsing fails, return the original URL
+    console.warn('Error converting to CDN URL:', e);
+    return url;
+  }
+}
