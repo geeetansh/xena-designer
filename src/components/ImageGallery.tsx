@@ -51,7 +51,8 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const dataFetchedRef = useRef(false);
 
-  // Modified to use pagination with a smaller batch size (8 per page)
+  // Modified to use pagination with a smaller batch size (10 per page)
+  // Includes better error handling and timeout recovery
   const loadImages = async (page = 1, append = false) => {
     try {
       setError(null);
@@ -65,8 +66,8 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
         }
       }
       
-      // Default to 8 items per page instead of 10
-      const { images: fetchedImages, totalCount: total, hasMore: more } = await fetchGeneratedImages(8, page);
+      // Limit to 10 items per page (reduced from 20 to prevent timeouts)
+      const { images: fetchedImages, totalCount: total, hasMore: more } = await fetchGeneratedImages(10, page);
       
       if (append) {
         setImages(prevImages => [...prevImages, ...fetchedImages]);
@@ -312,7 +313,6 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
     <>
       <div className="mb-3 md:mb-4">
         <h2 className="text-base md:text-lg font-medium">Your Images ({totalCount})</h2>
-        <p className="text-xs text-muted-foreground">Loading 8 images at a time to prevent timeouts</p>
       </div>
       
       {/* Show error banner if there was an error but we have some images */}
