@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { ImageGallery } from '@/components/ImageGallery';
-import { RawJsonView } from '@/components/RawJsonView';
 import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/lib/supabase';
-import { Loader2, Sparkles, Code, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Sparkles, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -17,22 +16,7 @@ export default function GalleryPage() {
     failed: number;
   }[]>([]);
   const [activeTab, setActiveTab] = useState('images');
-  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const navigate = useNavigate();
-
-  // Listen for events to view specific image JSON logs
-  useEffect(() => {
-    const handleViewImageJson = (event: CustomEvent<{ imageId: string }>) => {
-      setActiveTab('logs');
-      setSelectedImageId(event.detail.imageId);
-    };
-
-    window.addEventListener('viewImageJson', handleViewImageJson as EventListener);
-    
-    return () => {
-      window.removeEventListener('viewImageJson', handleViewImageJson as EventListener);
-    };
-  }, []);
 
   useEffect(() => {
     // Initial check for any active generations
@@ -213,10 +197,6 @@ export default function GalleryPage() {
               <ImageIcon className="h-3.5 w-3.5 md:h-4 md:w-4" />
               <span>Creatives</span>
             </TabsTrigger>
-            <TabsTrigger value="logs" className="flex items-center gap-1 px-2.5 text-xs md:text-sm">
-              <Code className="h-3.5 w-3.5 md:h-4 md:w-4" />
-              <span>JSON Logs</span>
-            </TabsTrigger>
           </TabsList>
           
           <Button 
@@ -237,10 +217,6 @@ export default function GalleryPage() {
           <div className="hidden sm:block">
             <ImageGallery refreshTrigger={refreshTrigger} />
           </div>
-        </TabsContent>
-        
-        <TabsContent value="logs">
-          <RawJsonView refreshTrigger={refreshTrigger} selectedImageId={selectedImageId} />
         </TabsContent>
       </Tabs>
     </div>

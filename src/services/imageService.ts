@@ -10,7 +10,6 @@ export type GeneratedImage = {
   prompt: string;
   created_at: string;
   reference_images: ReferenceImage[];
-  raw_json?: string; 
   variation_group_id?: string;
   variation_index?: number;
 };
@@ -45,7 +44,7 @@ export async function fetchGeneratedImages(limit: number = 10, page: number = 1)
     // Only select essential fields to reduce data transfer
     const { data: images, error: imagesError } = await supabase
       .from('images')
-      .select('id, url, prompt, created_at, user_id, raw_json, variation_group_id, variation_index')
+      .select('id, url, prompt, created_at, user_id, variation_group_id, variation_index')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
     // Removed AbortSignal.timeout(10000) that was causing timeouts
@@ -67,7 +66,6 @@ export async function fetchGeneratedImages(limit: number = 10, page: number = 1)
       prompt: image.prompt,
       created_at: image.created_at,
       reference_images: [], // Empty array since reference_images table doesn't exist
-      raw_json: image.raw_json,
       variation_group_id: image.variation_group_id,
       variation_index: image.variation_index
     }));
@@ -372,7 +370,7 @@ export async function generateImage(
   referenceImageUrls: string[] = [],
   variants: number = 1,
   size: string = 'auto'
-): Promise<{ urls: string[], variationGroupId: string, rawJson: any }> {
+): Promise<{ urls: string[], variationGroupId: string }> {
   startOperation(`Generating ${variants} images (${size}) with prompt: "${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}"`);
   const startTime = Date.now();
   
@@ -577,18 +575,7 @@ export async function generateImage(
         // Still return the data, but include the error information
         return {
           urls: [data.urls[0]],
-          variationGroupId,
-          rawJson: {
-            error: data.error,
-            errorDetails: data.errorDetails,
-            warning: "Used fallback image due to OpenAI API error",
-            fallback: true,
-            originalPrompt: prompt,
-            errorId: data.errorId,
-            timestamp: data.timestamp,
-            variation_group_id: variationGroupId,
-            variation_index: 0
-          }
+          variationGroupId
         };
       }
       
@@ -599,7 +586,6 @@ export async function generateImage(
           .update({
             status: 'completed',
             result_image_url: data.urls[i],
-            raw_response: JSON.stringify(data),
             updated_at: new Date().toISOString()
           })
           .eq('batch_id', variationGroupId)
@@ -628,11 +614,7 @@ export async function generateImage(
       endOperation(`Image generation completed`, startTime);
       return {
         urls: data.urls,
-        variationGroupId,
-        rawJson: {
-          ...data,
-          variation_group_id: variationGroupId
-        }
+        variationGroupId
       };
     } catch (error) {
       if (error.name === 'AbortError') {
@@ -781,7 +763,7 @@ export async function saveGeneratedImage(
   imageUrl: string,
   prompt: string,
   referenceImageUrls: string[] = [],
-  rawJson?: any
+  metadata?: any
 ): Promise<string> {
   // Get the current user
   const { data: { user } } = await supabase.auth.getUser();
@@ -803,8 +785,8 @@ export async function saveGeneratedImage(
         source: 'generated',
         filename: `generated-${Date.now()}.png`,
         content_type: 'image/png',
-        variation_group_id: rawJson?.variation_group_id,
-        variation_index: rawJson?.variation_index
+        variation_group_id: metadata?.variation_group_id,
+        variation_index: metadata?.variation_index
       });
       
       finalImageUrl = asset.original_url;
@@ -821,9 +803,8 @@ export async function saveGeneratedImage(
       url: finalImageUrl,
       prompt,
       user_id: user.id,
-      raw_json: rawJson ? JSON.stringify(rawJson) : null,
-      variation_group_id: rawJson?.variation_group_id,
-      variation_index: rawJson?.variation_index
+      variation_group_id: metadata?.variation_group_id,
+      variation_index: metadata?.variation_index
     })
     .select('id')
     .single();
@@ -836,13 +817,13 @@ export async function saveGeneratedImage(
   
   // Direct update to photoshoots table
   try {
-    if (rawJson?.variation_group_id && rawJson?.variation_index !== undefined) {
+    if (metadata?.variation_group_id && metadata?.variation_index !== undefined) {
       // Check if there's a corresponding photoshoot
       const { data: photoshoots } = await supabase
         .from('photoshoots')
         .select('id, status')
-        .eq('variation_group_id', rawJson.variation_group_id)
-        .eq('variation_index', rawJson.variation_index)
+        .eq('variation_group_id', metadata.variation_group_id)
+        .eq('variation_index', metadata.variation_index)
         .eq('status', 'processing');
         
       if (photoshoots && photoshoots.length > 0) {
@@ -862,8 +843,8 @@ export async function saveGeneratedImage(
         const { data: batchPhotoshoots } = await supabase
           .from('photoshoots')
           .select('id, status')
-          .eq('batch_id', rawJson.variation_group_id)
-          .eq('batch_index', rawJson.variation_index)
+          .eq('batch_id', metadata.variation_group_id)
+          .eq('batch_index', metadata.variation_index)
           .eq('status', 'processing');
           
         if (batchPhotoshoots && batchPhotoshoots.length > 0) {
@@ -878,7 +859,7 @@ export async function saveGeneratedImage(
             
           log(`Directly updated photoshoot ${batchPhotoshoots[0].id} using batch_id from saveGeneratedImage`);
         } else {
-          log(`No matching processing photoshoot found for variation_group_id=${rawJson.variation_group_id}, index=${rawJson.variation_index}`);
+          log(`No matching processing photoshoot found for variation_group_id=${metadata.variation_group_id}, index=${metadata.variation_index}`);
         }
       }
     }
@@ -897,11 +878,10 @@ export async function saveGeneratedImage(
         status: 'completed',
         reference_image_urls: referenceImageUrls,
         result_image_url: finalImageUrl,
-        raw_response: rawJson ? JSON.stringify(rawJson) : null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        batch_id: rawJson?.variation_group_id,
-        batch_index: rawJson?.variation_index || 0,
+        batch_id: metadata?.variation_group_id,
+        batch_index: metadata?.variation_index || 0,
         total_in_batch: 1
       });
       

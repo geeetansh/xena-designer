@@ -25,7 +25,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
-import { Download, FileJson, Eye, Image, Loader2, RefreshCw, Trash2 } from 'lucide-react';
+import { Download, Eye, Image, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getTransformedImageUrl } from '@/lib/utils';
@@ -417,24 +417,6 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
                   >
                     <Download className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
                     Download
-                  </Button>
-                  
-                  <Button 
-                    variant="outline" 
-                    className="flex-1 text-xs h-8 md:h-10"
-                    onClick={() => {
-                      // Close the current dialog
-                      setSelectedImage(null);
-                      
-                      // Dispatch a custom event that App.tsx can listen for
-                      const event = new CustomEvent('viewImageJson', { 
-                        detail: { imageId: selectedImage.id } 
-                      });
-                      window.dispatchEvent(event);
-                    }}
-                  >
-                    <FileJson className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
-                    View JSON
                   </Button>
                 </div>
               </div>
