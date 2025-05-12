@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/lib/supabase';
+import { getUserCredits } from '@/services/imageService';
+import { getShopifyCredentials } from '@/services/shopifyService';
+import { fetchAssets } from '@/services/AssetsService';
 import { SubscriptionBanner } from '@/components/SubscriptionBanner';
-import { useAppData } from '@/contexts/AppDataContext';
 import { 
   FaShopify as ShopifyIcon
 } from "react-icons/fa6";
@@ -10,19 +13,76 @@ import { GalleryVerticalEnd as LuGalleryVerticalEnd } from "lucide-react";
 import { TbPhotoSquareRounded, TbCoins } from "react-icons/tb";
 
 export default function HomePage() {
+  const [userProfile, setUserProfile] = useState<{
+    full_name?: string | null;
+    email?: string | null;
+  } | null>(null);
+  const [imageCount, setImageCount] = useState(0);
+  const [libraryCount, setLibraryCount] = useState(0);
+  const [credits, setCredits] = useState(0);
+  const [creditsUsed, setCreditsUsed] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isShopifyConnected, setIsShopifyConnected] = useState(false);
   const navigate = useNavigate();
-  
-  // Use the shared context instead of fetching data locally
-  const { 
-    userProfile, 
-    imageCount, 
-    libraryCount, 
-    credits, 
-    creditsUsed,
-    isShopifyConnected,
-    isLoading,
-    refreshData
-  } = useAppData();
+
+  useEffect(() => {
+    async function fetchUserData() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          // Set email as default
+          let userData = { email: user.email };
+          
+          // Try to get user profile with full_name
+          const { data: profile, error } = await supabase
+            .from('user_profiles')
+            .select('full_name')
+            .eq('user_id', user.id)
+            .single();
+            
+          if (!error && profile && profile.full_name) {
+            userData.full_name = profile.full_name;
+          }
+          
+          setUserProfile(userData);
+          
+          // Get count of images
+          const { count, error: countError } = await supabase
+            .from('images')
+            .select('id', { count: 'exact', head: true });
+            
+          if (countError) throw countError;
+          setImageCount(count || 0);
+          
+          // Get user credits
+          const { credits, creditsUsed } = await getUserCredits();
+          setCredits(credits);
+          setCreditsUsed(creditsUsed);
+          
+          // Get library count from assets table (replacing library_images)
+          const { data: libraryAssets, error: libraryError } = await supabase
+            .from('assets')
+            .select('id', { count: 'exact', head: true })
+            .eq('source', 'library');
+            
+          if (!libraryError) {
+            setLibraryCount(libraryAssets?.length || 0);
+          }
+          
+          // Check if Shopify is connected
+          const credentials = await getShopifyCredentials();
+          setIsShopifyConnected(!!credentials);
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    fetchUserData();
+  }, []);
 
   // Get appropriate user name for greeting
   const getUserName = () => {
