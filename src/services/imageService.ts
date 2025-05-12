@@ -33,8 +33,8 @@ export async function fetchGeneratedImages(limit: number = 10, page: number = 1)
     // Get total count of images with a fast count-only query
     const { count, error: countError } = await supabase
       .from('images')
-      .select('*', { count: 'exact', head: true })
-      .abortSignal(AbortSignal.timeout(5000)); // 5 second timeout for count query
+      .select('*', { count: 'exact', head: true });
+    // Removed AbortSignal.timeout(5000) that was causing timeouts
     
     if (countError) {
       console.error('Error fetching image count:', countError);
@@ -47,8 +47,8 @@ export async function fetchGeneratedImages(limit: number = 10, page: number = 1)
       .from('images')
       .select('id, url, prompt, created_at, user_id, raw_json, variation_group_id, variation_index')
       .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1)
-      .abortSignal(AbortSignal.timeout(10000)); // 10 second timeout
+      .range(offset, offset + limit - 1);
+    // Removed AbortSignal.timeout(10000) that was causing timeouts
     
     if (imagesError) {
       throw imagesError;
