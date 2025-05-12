@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { fetchAssets, deleteAsset, Asset } from '@/services/AssetsService';
 import { ImageGallery } from '@/components/ImageGallery';
 import { RawJsonView } from '@/components/RawJsonView';
 import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/lib/supabase';
-import { Loader2, Sparkles, Code, Image as ImageIcon, RefreshCw } from 'lucide-react';
+import { Loader2, Sparkles, Code, Image as ImageIcon, RefreshCw, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useToast } from '@/hooks/use-toast';
 
 export default function GalleryPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -19,7 +22,22 @@ export default function GalleryPage() {
   const [activeTab, setActiveTab] = useState('images');
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [images, setImages] = useState<Asset[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  
+  const { toast } = useToast();
   const navigate = useNavigate();
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Storage keys for cache
+  const GALLERY_CACHE_KEY = 'gallery_assets_cache';
+  const GALLERY_CACHE_TIMESTAMP_KEY = 'gallery_assets_cache_timestamp';
+  const CACHE_EXPIRATION_TIME = 30 * 60 * 1000; // 30 minutes
 
   // Listen for events to view specific image JSON logs
   useEffect(() => {
@@ -39,7 +57,6 @@ export default function GalleryPage() {
     // Initial check for any active generations
     async function checkActiveGenerations() {
       try {
-        console.log('Checking for active generations...');
         const { data, error } = await supabase
           .from('generation_tasks')
           .select('batch_id, status')
@@ -51,7 +68,6 @@ export default function GalleryPage() {
         if (data && data.length > 0) {
           // Get unique batch IDs
           const batchIds = [...new Set(data.map(task => task.batch_id))];
-          console.log(`Found ${batchIds.length} active batch(es)`);
           
           // Fetch status for each batch
           for (const batchId of batchIds) {
@@ -60,7 +76,6 @@ export default function GalleryPage() {
             });
             
             if (batchStatus.data) {
-              console.log(`Batch ${batchId} status:`, batchStatus.data);
               setActiveGenerations(prev => [
                 ...prev, 
                 {
@@ -72,8 +87,6 @@ export default function GalleryPage() {
               ]);
             }
           }
-        } else {
-          console.log('No active generations found');
         }
       } catch (error) {
         console.error('Error checking active generations:', error);
@@ -81,6 +94,38 @@ export default function GalleryPage() {
     }
     
     checkActiveGenerations();
+    
+    // Try to load from cache first
+    const loadFromCache = () => {
+      try {
+        const cachedDataString = localStorage.getItem(GALLERY_CACHE_KEY);
+        const cachedTimestampString = localStorage.getItem(GALLERY_CACHE_TIMESTAMP_KEY);
+        
+        if (cachedDataString && cachedTimestampString) {
+          const cachedTimestamp = parseInt(cachedTimestampString);
+          const now = Date.now();
+          
+          // Use cache if it's not expired
+          if (now - cachedTimestamp < CACHE_EXPIRATION_TIME) {
+            const cachedData = JSON.parse(cachedDataString);
+            setImages(cachedData.assets);
+            setTotalCount(cachedData.totalCount);
+            setHasMore(cachedData.hasMore);
+            setPage(cachedData.page);
+            setLoading(false);
+            return true;
+          }
+        }
+      } catch (error) {
+        console.error('Error loading from cache:', error);
+      }
+      return false;
+    };
+
+    // Try cache first, if that fails, load fresh data
+    if (!loadFromCache()) {
+      loadAssets(1);
+    }
     
     // Subscribe to generation task updates
     const channel = supabase
@@ -93,7 +138,6 @@ export default function GalleryPage() {
           table: 'generation_tasks'
         },
         async (payload) => {
-          console.log('Received task update event:', payload);
           // When a task is updated, check if it's part of an active batch
           if (payload.new && payload.new.batch_id) {
             try {
@@ -102,7 +146,6 @@ export default function GalleryPage() {
               });
               
               if (data) {
-                console.log(`Updated batch ${payload.new.batch_id} status:`, data);
                 // Check if this batch is already being tracked
                 setActiveGenerations(prev => {
                   const existing = prev.findIndex(batch => batch.batchId === payload.new.batch_id);
@@ -119,19 +162,18 @@ export default function GalleryPage() {
                     
                     // If batch is complete, schedule it for removal
                     if (data.completed + data.failed === data.total) {
-                      console.log(`Batch ${payload.new.batch_id} is complete, scheduling removal`);
                       setTimeout(() => {
                         setActiveGenerations(batches => 
                           batches.filter(b => b.batchId !== payload.new.batch_id)
                         );
-                        setRefreshTrigger(prev => prev + 1); // Refresh gallery when batch completes
+                        // Load fresh data when a batch completes
+                        loadAssets(1);
                       }, 2000);
                     }
                     
                     return updatedBatches;
                   } else if (data.total > data.completed + data.failed) {
                     // Add new batch if not complete
-                    console.log(`Adding new batch ${payload.new.batch_id} to tracked batches`);
                     return [...prev, {
                       batchId: payload.new.batch_id,
                       total: data.total,
@@ -153,11 +195,72 @@ export default function GalleryPage() {
     
     // Cleanup
     return () => {
-      console.log('Cleaning up subscription');
       supabase.removeChannel(channel);
     };
   }, []);
   
+  // Load assets with caching
+  const loadAssets = async (pageNum: number, append: boolean = false) => {
+    try {
+      setError(null);
+      
+      if (!append) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
+      
+      const { assets, totalCount, hasMore } = await fetchAssets({
+        source: 'generated',
+        limit: 12, // Smaller batch size to prevent timeouts
+        page: pageNum
+      });
+      
+      // Update state with new data
+      const newImages = append ? [...images, ...assets] : assets;
+      setImages(newImages);
+      setTotalCount(totalCount);
+      setHasMore(hasMore);
+      setPage(pageNum);
+      
+      // Cache the results
+      try {
+        localStorage.setItem(GALLERY_CACHE_KEY, JSON.stringify({
+          assets: newImages,
+          totalCount,
+          hasMore,
+          page: pageNum
+        }));
+        localStorage.setItem(GALLERY_CACHE_TIMESTAMP_KEY, Date.now().toString());
+      } catch (error) {
+        console.error('Error caching gallery data:', error);
+        // Continue even if caching fails
+      }
+      
+    } catch (error) {
+      console.error('Error loading assets:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load images');
+      
+      toast({
+        title: 'Error loading images',
+        description: error instanceof Error ? error.message : 'An unexpected error occurred',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+      setIsRefreshing(false);
+    }
+  };
+  
+  // Handle loading more images
+  const handleLoadMore = () => {
+    if (!loadingMore && hasMore) {
+      const nextPage = page + 1;
+      loadAssets(nextPage, true);
+    }
+  };
+
   // Calculate combined progress across all active batches
   const calculateProgress = () => {
     if (activeGenerations.length === 0) return 0;
@@ -173,13 +276,143 @@ export default function GalleryPage() {
   // Handle refresh for both tabs
   const handleRefresh = () => {
     setIsRefreshing(true);
-    setRefreshTrigger(prev => prev + 1);
     
-    // Reset refreshing state after a moment
-    setTimeout(() => {
-      setIsRefreshing(false);
-    }, 500);
+    // Clear cache
+    try {
+      localStorage.removeItem(GALLERY_CACHE_KEY);
+      localStorage.removeItem(GALLERY_CACHE_TIMESTAMP_KEY);
+    } catch (error) {
+      console.error('Error clearing cache:', error);
+    }
+    
+    // Reset states and load fresh data
+    setPage(1);
+    setImages([]);
+    setRefreshTrigger(prev => prev + 1);
+    loadAssets(1, false);
   };
+  
+  // Set up intersection observer for infinite loading
+  useEffect(() => {
+    if (!loadMoreRef.current || !hasMore || loadingMore || loading) return;
+    
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          handleLoadMore();
+        }
+      },
+      { threshold: 0.5 }
+    );
+    
+    observer.observe(loadMoreRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loading, images]);
+  
+  // Convert Assets to format expected by ImageGallery
+  const convertedImages = useMemo(() => {
+    return images.map(asset => ({
+      id: asset.id,
+      url: asset.original_url,
+      prompt: asset.filename || 'Generated Image',
+      created_at: asset.created_at,
+      reference_images: [], // Empty since we don't have reference data here
+      variation_group_id: asset.variation_group_id,
+      variation_index: asset.variation_index
+    }));
+  }, [images]);
+
+  // The grid of images - memoized to prevent unnecessary re-renders
+  const imageGrid = useMemo(() => {
+    if (loading && images.length === 0) {
+      return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4">
+          {[...Array(8)].map((_, index) => (
+            <div key={index} className="aspect-square rounded-lg shadow-sm">
+              <Skeleton className="w-full h-full rounded-lg" />
+            </div>
+          ))}
+        </div>
+      );
+    }
+    
+    if (images.length === 0 && !loading) {
+      return (
+        <div className="flex flex-col items-center justify-center h-48 md:h-64 text-center">
+          <Image className="h-12 w-12 md:h-16 md:w-16 text-muted-foreground mb-3 md:mb-4" />
+          <h3 className="text-base md:text-lg font-medium">No images yet</h3>
+          <p className="text-xs md:text-sm text-muted-foreground mt-1">
+            Upload reference images and generate your first AI image
+          </p>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4">
+        {images.map((image) => {
+          return (
+            <div 
+              key={image.id} 
+              className="relative group overflow-hidden rounded-lg shadow-sm transition-all duration-200 hover:shadow-md"
+            >
+              <div className="aspect-square w-full h-full bg-background">
+                <img
+                  src={image.original_url} 
+                  alt={image.filename || 'Generated image'}
+                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                  loading="lazy"
+                />
+              </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end">
+                <div className="p-2 md:p-4 space-y-1">
+                  <h3 className="text-white font-medium text-xs md:text-sm line-clamp-1">
+                    {image.filename || 'Generated image'}
+                  </h3>
+                  <div className="flex justify-between mt-1 md:mt-2">
+                    <Button 
+                      size="sm" 
+                      variant="secondary"
+                      className="rounded-full shadow-lg text-xs h-7 px-2 md:h-8 md:px-3"
+                      onClick={() => setSelectedImageId(image.id)}
+                    >
+                      <Eye className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                      View
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="destructive"
+                      className="rounded-full shadow-lg h-7 w-7 p-0 md:h-8 md:w-8"
+                      onClick={() => {
+                        // Implement delete functionality here
+                        if (confirm('Are you sure you want to delete this image?')) {
+                          deleteAsset(image.id).then(() => {
+                            setImages(prev => prev.filter(img => img.id !== image.id));
+                            toast({
+                              title: 'Image deleted',
+                              description: 'The image has been deleted successfully',
+                            });
+                          }).catch(err => {
+                            toast({
+                              title: 'Error deleting image',
+                              description: err.message,
+                              variant: 'destructive',
+                            });
+                          });
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }, [images, loading, toast]);
 
   return (
     <div>
@@ -231,7 +464,7 @@ export default function GalleryPage() {
             size="sm" 
             onClick={handleRefresh}
             className="h-8 text-xs"
-            disabled={isRefreshing}
+            disabled={isRefreshing || loading}
           >
             {isRefreshing ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -243,17 +476,47 @@ export default function GalleryPage() {
         </div>
         
         <TabsContent value="images" className="mt-2 md:mt-4">
-          {/* Mobile view with 2 columns, desktop with 4 */}
-          <div className="sm:hidden">
-            <ImageGallery refreshTrigger={refreshTrigger} columns={2} />
-          </div>
-          <div className="hidden sm:block">
-            <ImageGallery refreshTrigger={refreshTrigger} />
-          </div>
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Error loading images</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+        
+          {/* Image Grid */}
+          {imageGrid}
+          
+          {/* Load more button */}
+          {hasMore && !loading && (
+            <div ref={loadMoreRef} className="flex justify-center mt-6 mb-4">
+              <Button 
+                onClick={handleLoadMore} 
+                disabled={loadingMore}
+                variant="outline"
+                size="sm"
+                className="w-full text-xs md:text-sm md:max-w-xs h-8 md:h-10"
+              >
+                {loadingMore ? (
+                  <>
+                    <Loader2 className="h-3 w-3 md:h-4 md:w-4 mr-2 animate-spin" />
+                    Loading more...
+                  </>
+                ) : (
+                  <>
+                    Load More Images
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </TabsContent>
         
         <TabsContent value="logs">
-          <RawJsonView refreshTrigger={refreshTrigger} selectedImageId={selectedImageId} />
+          <RawJsonView 
+            refreshTrigger={refreshTrigger} 
+            selectedImageId={selectedImageId} 
+          />
         </TabsContent>
       </Tabs>
     </div>
