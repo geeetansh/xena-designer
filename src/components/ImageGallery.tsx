@@ -415,6 +415,7 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
                     alt={selectedImage.prompt}
                     className="object-contain w-full h-full"
                     loading="lazy"
+                    decoding="async"
                   />
                 </div>
                 <div className="flex gap-2">
@@ -452,6 +453,7 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
                               alt="Reference"
                               className="object-cover w-full h-full"
                               loading="lazy"
+                              decoding="async"
                             />
                           </div>
                         );

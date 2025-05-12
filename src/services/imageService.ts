@@ -633,29 +633,6 @@ export async function generateImage(
         }
       }
       
-      // For each generated image, create an entry in the images table
-      console.log(`Creating ${data.urls.length} image entries in images table`);
-      for (let i = 0; i < data.urls.length; i++) {
-        try {
-          console.log(`Saving image ${i+1}/${data.urls.length} to images table: url=${data.urls[i].substring(0, 30)}...`);
-          
-          await saveGeneratedImage(
-            data.urls[i],
-            prompt,
-            referenceImageUrls,
-            {
-              variation_group_id: variationGroupId,
-              variation_index: i
-            }
-          );
-          
-          console.log(`Successfully saved image ${i+1}/${data.urls.length} to images table`);
-        } catch (saveError) {
-          console.error(`Error saving image ${i+1} to images table:`, saveError);
-          // Continue with other images even if one fails
-        }
-      }
-      
       endOperation(`Image generation completed`, startTime);
       return {
         urls: data.urls,
@@ -791,7 +768,7 @@ export async function generateImage(
       } else if (error.message.includes('timeout')) {
         throw new Error(`Timeout error: ${error.message}`);
       } else if (error.message.includes('OpenAI')) {
-        throw new Error(`OpenAI error: ${error.message}`);
+        throw new Error(`OpenAI API error: ${error.message}`);
       } else if (error.message.includes('Supabase')) {
         throw new Error(`Supabase error: ${error.message}`);
       } else {
@@ -851,6 +828,18 @@ export async function saveGeneratedImage(
   
   // Create a new record in the images table
   try {
+    // Check if this image URL already exists in the database to avoid duplication
+    const { data: existingImage } = await supabase
+      .from('images')
+      .select('id')
+      .eq('url', finalImageUrl)
+      .maybeSingle();
+    
+    if (existingImage) {
+      console.log(`Image with URL ${finalImageUrl.substring(0, 30)}... already exists in database, skipping insertion`);
+      return existingImage.id;
+    }
+    
     const { data: imageData, error: imageError } = await supabase
       .from('images')
       .insert({
