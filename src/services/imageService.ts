@@ -29,7 +29,9 @@ export async function fetchGeneratedImages(limit: number = 10, page: number = 1)
     // Calculate offset based on page and limit
     const offset = (page - 1) * limit;
     
-    // Get total count of images with a fast count-only query
+    console.log(`Fetching images with limit=${limit}, page=${page}, offset=${offset}`);
+    
+    // Get total count
     const { count, error: countError } = await supabase
       .from('images')
       .select('*', { count: 'exact', head: true });
@@ -40,8 +42,13 @@ export async function fetchGeneratedImages(limit: number = 10, page: number = 1)
       // Continue anyway, we can still fetch the images
     }
     
+    // Log the total count
+    console.log(`Total images count: ${count}`);
+    
     // Get images created by the current user with pagination
     // Only select essential fields to reduce data transfer
+    console.log(`Executing query: SELECT id, url, prompt, created_at, user_id, variation_group_id, variation_index FROM images ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`);
+    
     const { data: images, error: imagesError } = await supabase
       .from('images')
       .select('id, url, prompt, created_at, user_id, variation_group_id, variation_index')
@@ -50,8 +57,11 @@ export async function fetchGeneratedImages(limit: number = 10, page: number = 1)
     // Removed AbortSignal.timeout(10000) that was causing timeouts
     
     if (imagesError) {
+      console.error('Error fetching images:', imagesError);
       throw imagesError;
     }
+    
+    console.log(`Fetched ${images?.length || 0} images from database`);
     
     // Fast return if no images
     if (!images || images.length === 0) {
@@ -60,15 +70,18 @@ export async function fetchGeneratedImages(limit: number = 10, page: number = 1)
     
     // Map images to the expected format - without trying to fetch reference_images
     // since that table no longer exists
-    const generatedImages: GeneratedImage[] = images.map(image => ({
-      id: image.id,
-      url: image.url,
-      prompt: image.prompt,
-      created_at: image.created_at,
-      reference_images: [], // Empty array since reference_images table doesn't exist
-      variation_group_id: image.variation_group_id,
-      variation_index: image.variation_index
-    }));
+    const generatedImages: GeneratedImage[] = images.map(image => {
+      console.log(`Processing image: ${image.id}, url: ${image.url?.substring(0, 30)}...`);
+      return {
+        id: image.id,
+        url: image.url,
+        prompt: image.prompt,
+        created_at: image.created_at,
+        reference_images: [], // Empty array since reference_images table doesn't exist
+        variation_group_id: image.variation_group_id,
+        variation_index: image.variation_index
+      };
+    });
     
     // Calculate if there are more images to load
     const totalCount = count || 0;
@@ -471,6 +484,14 @@ export async function generateImage(
       
       log(`Request payload summary: ${JSON.stringify(payloadSummary)}`);
       
+      console.log(`Calling OpenAI API via edge function (generate-image) with ${variants} variants`);
+      console.log('Payload:', {
+        referenceUrls: allReferenceImageUrls.map(url => url.substring(0, 30) + '...'),
+        prompt: prompt.substring(0, 50) + (prompt.length > 50 ? '...' : ''),
+        variants,
+        size: mappedSize
+      });
+      
       const response = await fetch(`${supabaseUrl}/functions/v1/generate-image`, {
         method: 'POST',
         headers: {
@@ -536,6 +557,7 @@ export async function generateImage(
       }
       
       const data = await response.json();
+      console.log(`Received response from edge function:`, data);
       log(`Response received from edge function with ${data.urls?.length || 0} image URLs`);
       
       // Check if the response contains an error or fallback
@@ -575,7 +597,7 @@ export async function generateImage(
         // Still return the data, but include the error information
         return {
           urls: [data.urls[0]],
-          variationGroupId
+          variationGroupId,
         };
       }
       
@@ -608,6 +630,29 @@ export async function generateImage(
         } catch (photoshootError) {
           logError(`Error updating photoshoot: ${photoshootError}`);
           // Continue processing other images even if this one fails
+        }
+      }
+      
+      // For each generated image, create an entry in the images table
+      console.log(`Creating ${data.urls.length} image entries in images table`);
+      for (let i = 0; i < data.urls.length; i++) {
+        try {
+          console.log(`Saving image ${i+1}/${data.urls.length} to images table: url=${data.urls[i].substring(0, 30)}...`);
+          
+          await saveGeneratedImage(
+            data.urls[i],
+            prompt,
+            referenceImageUrls,
+            {
+              variation_group_id: variationGroupId,
+              variation_index: i
+            }
+          );
+          
+          console.log(`Successfully saved image ${i+1}/${data.urls.length} to images table`);
+        } catch (saveError) {
+          console.error(`Error saving image ${i+1} to images table:`, saveError);
+          // Continue with other images even if one fails
         }
       }
       
@@ -796,58 +841,49 @@ export async function saveGeneratedImage(
     }
   }
   
+  console.log(`Inserting image into images table: 
+  - URL: ${finalImageUrl.substring(0, 30)}...
+  - Prompt: ${prompt.substring(0, 30)}...
+  - User ID: ${user.id}
+  - Variation Group ID: ${metadata?.variation_group_id}
+  - Variation Index: ${metadata?.variation_index}
+  `);
+  
   // Create a new record in the images table
-  const { data: imageData, error: imageError } = await supabase
-    .from('images')
-    .insert({
-      url: finalImageUrl,
-      prompt,
-      user_id: user.id,
-      variation_group_id: metadata?.variation_group_id,
-      variation_index: metadata?.variation_index
-    })
-    .select('id')
-    .single();
-  
-  if (imageError) {
-    throw new Error(`Error saving image: ${imageError.message}`);
-  }
-  
-  success(`Image saved to database with ID: ${imageData.id}`);
-  
-  // Direct update to photoshoots table
   try {
-    if (metadata?.variation_group_id && metadata?.variation_index !== undefined) {
-      // Check if there's a corresponding photoshoot
-      const { data: photoshoots } = await supabase
-        .from('photoshoots')
-        .select('id, status')
-        .eq('variation_group_id', metadata.variation_group_id)
-        .eq('variation_index', metadata.variation_index)
-        .eq('status', 'processing');
-        
-      if (photoshoots && photoshoots.length > 0) {
-        // Update the photoshoot
-        await supabase
-          .from('photoshoots')
-          .update({
-            status: 'completed',
-            result_image_url: finalImageUrl,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', photoshoots[0].id);
-          
-        log(`Directly updated photoshoot ${photoshoots[0].id} from saveGeneratedImage`);
-      } else {
-        // Try with batch_id instead
-        const { data: batchPhotoshoots } = await supabase
+    const { data: imageData, error: imageError } = await supabase
+      .from('images')
+      .insert({
+        url: finalImageUrl,
+        prompt,
+        user_id: user.id,
+        variation_group_id: metadata?.variation_group_id,
+        variation_index: metadata?.variation_index
+      })
+      .select('id')
+      .single();
+    
+    if (imageError) {
+      console.error('Error inserting record into images table:', imageError);
+      throw new Error(`Error saving image: ${imageError.message}`);
+    }
+    
+    console.log(`Successfully inserted image record with ID: ${imageData.id}`);
+    success(`Image saved to database with ID: ${imageData.id}`);
+    
+    // Direct update to photoshoots table
+    try {
+      if (metadata?.variation_group_id && metadata?.variation_index !== undefined) {
+        // Check if there's a corresponding photoshoot
+        const { data: photoshoots } = await supabase
           .from('photoshoots')
           .select('id, status')
-          .eq('batch_id', metadata.variation_group_id)
-          .eq('batch_index', metadata.variation_index)
+          .eq('variation_group_id', metadata.variation_group_id)
+          .eq('variation_index', metadata.variation_index)
           .eq('status', 'processing');
           
-        if (batchPhotoshoots && batchPhotoshoots.length > 0) {
+        if (photoshoots && photoshoots.length > 0) {
+          // Update the photoshoot
           await supabase
             .from('photoshoots')
             .update({
@@ -855,44 +891,68 @@ export async function saveGeneratedImage(
               result_image_url: finalImageUrl,
               updated_at: new Date().toISOString()
             })
-            .eq('id', batchPhotoshoots[0].id);
+            .eq('id', photoshoots[0].id);
             
-          log(`Directly updated photoshoot ${batchPhotoshoots[0].id} using batch_id from saveGeneratedImage`);
+          log(`Directly updated photoshoot ${photoshoots[0].id} from saveGeneratedImage`);
         } else {
-          log(`No matching processing photoshoot found for variation_group_id=${metadata.variation_group_id}, index=${metadata.variation_index}`);
+          // Try with batch_id instead
+          const { data: batchPhotoshoots } = await supabase
+            .from('photoshoots')
+            .select('id, status')
+            .eq('batch_id', metadata.variation_group_id)
+            .eq('batch_index', metadata.variation_index)
+            .eq('status', 'processing');
+            
+          if (batchPhotoshoots && batchPhotoshoots.length > 0) {
+            await supabase
+              .from('photoshoots')
+              .update({
+                status: 'completed',
+                result_image_url: finalImageUrl,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', batchPhotoshoots[0].id);
+              
+            log(`Directly updated photoshoot ${batchPhotoshoots[0].id} using batch_id from saveGeneratedImage`);
+          } else {
+            log(`No matching processing photoshoot found for variation_group_id=${metadata.variation_group_id}, index=${metadata.variation_index}`);
+          }
         }
       }
+    } catch (photoshootError) {
+      logError(`Error updating photoshoot in saveGeneratedImage: ${photoshootError}`);
+      // Continue without failing the save operation
     }
-  } catch (photoshootError) {
-    logError(`Error updating photoshoot in saveGeneratedImage: ${photoshootError}`);
-    // Continue without failing the save operation
-  }
-  
-  // Also create a generation_task record to ensure proper synchronization
-  try {
-    const { error: taskError } = await supabase
-      .from('generation_tasks')
-      .insert({
-        user_id: user.id,
-        prompt,
-        status: 'completed',
-        reference_image_urls: referenceImageUrls,
-        result_image_url: finalImageUrl,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        batch_id: metadata?.variation_group_id,
-        batch_index: metadata?.variation_index || 0,
-        total_in_batch: 1
-      });
-      
-    if (taskError) {
-      logError(`Warning: Failed to create task record: ${taskError.message}`);
-      // We don't throw here as the image was still saved successfully
+    
+    // Also create a generation_task record to ensure proper synchronization
+    try {
+      const { error: taskError } = await supabase
+        .from('generation_tasks')
+        .insert({
+          user_id: user.id,
+          prompt,
+          status: 'completed',
+          reference_image_urls: referenceImageUrls,
+          result_image_url: finalImageUrl,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          batch_id: metadata?.variation_group_id,
+          batch_index: metadata?.variation_index || 0,
+          total_in_batch: 1
+        });
+        
+      if (taskError) {
+        logError(`Warning: Failed to create task record: ${taskError.message}`);
+        // We don't throw here as the image was still saved successfully
+      }
+    } catch (taskError) {
+      logError(`Warning: Exception creating task record: ${taskError}`);
+      // Continue without failing the save operation
     }
-  } catch (taskError) {
-    logError(`Warning: Exception creating task record: ${taskError}`);
-    // Continue without failing the save operation
+    
+    return imageData.id;
+  } catch (error) {
+    console.error('Error in saveGeneratedImage:', error);
+    throw error;
   }
-  
-  return imageData.id;
 }

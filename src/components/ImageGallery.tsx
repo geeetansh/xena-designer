@@ -67,8 +67,14 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
         }
       }
       
+      // Debug logging
+      console.log(`Loading images - page: ${page}, append: ${append}`);
+      
       // Limit to 10 items per page (reduced from 20 to prevent timeouts)
       const { images: fetchedImages, totalCount: total, hasMore: more } = await fetchGeneratedImages(10, page);
+      
+      // Log what we got back
+      console.log(`Fetched ${fetchedImages.length} images from database, total: ${total}`);
       
       if (append) {
         setImages(prevImages => [...prevImages, ...fetchedImages]);
@@ -101,6 +107,7 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
     // Don't fetch data again if not necessary
     if (!dataFetchedRef.current || refreshTrigger > 0) {
       // Reset to page 1 when refreshing
+      console.log("Refreshing image gallery data");
       loadImages(1, false);
     }
   }, [refreshTrigger]);

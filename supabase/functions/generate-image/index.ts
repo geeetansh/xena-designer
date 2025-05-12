@@ -420,7 +420,7 @@ Deno.serve(async (req: Request) => {
         timeoutId = null;
       }
       
-      // CHANGE: Log the variation count and returned URLs
+      // Log the variation count and returned URLs
       console.log(`[${executionId}] ✅ OpenAI API response: variationGroupId=${variationGroupId}, requestedVariants=${variants}, returnedUrls=${response.data.length}`);
       
       // Check if we got fewer URLs than requested variants
@@ -430,7 +430,6 @@ Deno.serve(async (req: Request) => {
       
       // Process each generated image
       const imageUrls = [];
-      const imageRecords = [];
       
       for (let i = 0; i < response.data.length; i++) {
         const imageData = response.data[i];
@@ -467,112 +466,62 @@ Deno.serve(async (req: Request) => {
         
         imageUrls.push(storedImageUrl);
         
-        // Prepare image record
-        imageRecords.push({
-          url: storedImageUrl,
-          prompt,
-          user_id: user.id,
-          variation_group_id: variationGroupId,
-          variation_index: i,
-          raw_json: JSON.stringify({
-            input: {
-              prompt,
-              reference_images: referenceImages,
-              size: size,
-              variant: i + 1,
-              total_variants: variants
-            },
-            output: {
-              // Only include the relevant data for this specific image
-              data: [imageData]
-            },
-            processing: {
-              steps: [
-                `1. Generated ${variants} image(s) with OpenAI API`,
-                `2. This is variation ${i+1} of ${variants}`,
-                `3. Saved to storage with ID: ${imageId}`
-              ],
-              performance: {
-                api_time: (Date.now() - startTime) / 1000,
-                total_time: (Date.now() - requestStartTime) / 1000,
-                reference_images_count: imageFiles.length
-              }
-            }
-          })
-        });
-      }
-      
-      // Insert all image records at once
-      if (imageRecords.length > 0) {
-        console.log(`[${executionId}] Inserting ${imageRecords.length} image records into database`);
-        const { data: insertedImages, error: insertError } = await supabase
-          .from("images")
-          .insert(imageRecords)
-          .select('id');
-        
-        if (insertError) {
-          console.error(`[${executionId}] Error inserting images: ${insertError.message}`);
-        } else {
-          console.log(`[${executionId}] Successfully inserted ${insertedImages.length} image records`);
-        }
-      }
-      
-      // Update all related generation_tasks
-      console.log(`[${executionId}] Updating ${variants} generation tasks to completed for batch ${variationGroupId}`);
-      
-      // First, get a list of task IDs for this batch
-      const { data: taskIds, error: taskError } = await supabase
-        .from('generation_tasks')
-        .select('id, batch_index')
-        .eq('batch_id', variationGroupId);
-        
-      if (taskError) {
-        console.error(`[${executionId}] Error fetching task IDs: ${taskError.message}`);
-      } else if (taskIds && taskIds.length > 0) {
-        console.log(`[${executionId}] Found ${taskIds.length} tasks to update for batch ${variationGroupId}`);
-        
-        // Update each task
-        for (const task of taskIds) {
-          // Get the corresponding image URL if available
-          const imageUrl = imageUrls[task.batch_index] || null;
+        // Insert into images table
+        try {
+          console.log(`[${executionId}] Inserting image ${i+1}/${response.data.length} into images table...`);
           
-          if (imageUrl) {
-            // Update the task with the image URL
-            const { error: updateError } = await supabase
-              .from('generation_tasks')
-              .update({
-                status: 'completed',
-                result_image_url: imageUrl,
-                raw_response: JSON.stringify(response),
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', task.id);
-              
-            if (updateError) {
-              console.error(`[${executionId}] Error updating task ${task.id}: ${updateError.message}`);
-            } else {
-              console.log(`[${executionId}] Successfully updated task ${task.id}`);
-            }
+          const { data: imageRecord, error: insertError } = await supabase
+            .from('images')
+            .insert({
+              url: storedImageUrl,
+              prompt: prompt,
+              user_id: user.id,
+              variation_group_id: variationGroupId,
+              variation_index: i,
+              created_at: new Date().toISOString()
+            })
+            .select('id')
+            .single();
+            
+          if (insertError) {
+            console.error(`[${executionId}] ERROR: Failed to insert image record: ${insertError.message}`);
           } else {
-            // Mark task as failed if no URL was returned for this index
-            const { error: updateError } = await supabase
-              .from('generation_tasks')
-              .update({
-                status: 'failed',
-                error_message: 'No image URL was returned for this variant',
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', task.id);
-              
-            if (updateError) {
-              console.error(`[${executionId}] Error updating task ${task.id} to failed: ${updateError.message}`);
-            } else {
-              console.log(`[${executionId}] Marked task ${task.id} as failed (no URL returned)`);
-            }
+            console.log(`[${executionId}] SUCCESS: Inserted image record with ID: ${imageRecord.id}`);
           }
+        } catch (insertError) {
+          console.error(`[${executionId}] EXCEPTION: Failed to insert image record:`, insertError);
         }
-      } else {
-        console.log(`[${executionId}] No tasks found for batch ${variationGroupId}`);
+      }
+      
+      // Update all task records to 'completed' status
+      for (let i = 0; i < variants && i < response.data.length; i++) {
+        await supabase
+          .from('generation_tasks')
+          .update({
+            status: 'completed',
+            result_image_url: imageUrls[i],
+            updated_at: new Date().toISOString()
+          })
+          .eq('batch_id', variationGroupId)
+          .eq('batch_index', i);
+          
+        // Direct update of photoshoots
+        try {
+          await supabase
+            .from('photoshoots')
+            .update({
+              status: 'completed',
+              result_image_url: imageUrls[i],
+              updated_at: new Date().toISOString()
+            })
+            .eq('batch_id', variationGroupId)
+            .eq('batch_index', i);
+            
+          console.log(`[${executionId}] Directly updated photoshoot for batch=${variationGroupId}, index=${i}`);
+        } catch (photoshootError) {
+          console.error(`[${executionId}] Error updating photoshoot: ${photoshootError}`);
+          // Continue processing other images even if this one fails
+        }
       }
       
       // Deduct credits based on the number of variants
@@ -629,7 +578,7 @@ Deno.serve(async (req: Request) => {
       
       console.log(`[${executionId}] Using fallback image due to error (${errorId})`);
       
-      // CHANGE: Update all generation tasks for this batch to failed
+      // Update all generation tasks for this batch to failed
       try {
         // First, find all tasks for this batch
         const { data: batchTasks, error: batchError } = await supabase
