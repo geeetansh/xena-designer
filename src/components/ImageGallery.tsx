@@ -195,11 +195,31 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
     setImageToDelete(image);
     setIsDeleteDialogOpen(true);
   };
+  
+  // Function to convert Supabase URL to CDN URL
+  const getCdnUrl = (url: string): string => {
+    try {
+      // Skip conversion for data URLs
+      if (url.startsWith('data:')) return url;
+      
+      // Use the URL constructor to parse the URL
+      const urlObj = new URL(url);
+      // Replace the host with cdn.xena.cx but keep the pathname
+      return `https://cdn.xena.cx${urlObj.pathname}`;
+    } catch (e) {
+      // If URL parsing fails, return the original URL
+      console.warn('Error converting to CDN URL:', e);
+      return url;
+    }
+  };
 
   // Memoize the image rendering to prevent unnecessary re-renders
   const imageGallery = useMemo(() => (
     <div className={`grid grid-cols-${columns === 2 ? '2' : '1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'} gap-2 md:gap-4`}>
       {images.map((image) => {
+        // Convert image URL to CDN URL
+        const cdnUrl = getCdnUrl(image.url);
+        
         return (
           <div 
             key={image.id} 
@@ -207,7 +227,7 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
           >
             <div className="aspect-square w-full h-full bg-background">
               <img
-                src={image.url} 
+                src={cdnUrl} 
                 alt={image.prompt}
                 className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                 loading="lazy"
@@ -387,7 +407,7 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
               <div className="space-y-3 md:space-y-4">
                 <div className="rounded-lg overflow-hidden">
                   <img 
-                    src={selectedImage.url} 
+                    src={getCdnUrl(selectedImage.url)} 
                     alt={selectedImage.prompt}
                     className="object-contain w-full h-full"
                     loading="lazy"
@@ -437,7 +457,7 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
                         return (
                           <div key={refImage.id} className="aspect-square border rounded-md overflow-hidden">
                             <img 
-                              src={refImage.url} 
+                              src={getCdnUrl(refImage.url)} 
                               alt="Reference"
                               className="object-cover w-full h-full"
                               loading="lazy"
