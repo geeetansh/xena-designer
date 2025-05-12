@@ -1,421 +1,947 @@
 import { supabase } from '@/lib/supabase';
-import { PostgrestError } from '@supabase/supabase-js';
+import { v4 as uuidv4 } from 'uuid';
+import { mapLayoutToOpenAISize } from '@/lib/utils';
+import { log, success, error as logError, startOperation, endOperation, formatFileSize } from '@/lib/logger';
+import { uploadFromBuffer } from './AssetsService';
 
-// Interface for reference images
-export interface ReferenceImage {
-  id: string;
-  url: string;
-}
-
-// Interface for generated images
-export interface GeneratedImage {
+export type GeneratedImage = {
   id: string;
   url: string;
   prompt: string;
   created_at: string;
-  user_id: string;
-  raw_json?: string;
-  reference_images: ReferenceImage[]; // Change to array of reference images
-}
+  reference_images: ReferenceImage[];
+  raw_json?: string; 
+  variation_group_id?: string;
+  variation_index?: number;
+};
 
-/**
- * Fetch generated images with pagination and optimized query
- */
-export async function fetchGeneratedImages(limit = 10, page = 1): Promise<{
-  images: GeneratedImage[];
-  totalCount: number;
-  hasMore: boolean;
+export type ReferenceImage = {
+  id: string;
+  url: string;
+};
+
+// Updated with smaller default limit to prevent timeouts
+export async function fetchGeneratedImages(limit: number = 10, page: number = 1): Promise<{
+  images: GeneratedImage[],
+  totalCount: number,
+  hasMore: boolean
 }> {
   try {
-    // Calculate offset based on page number and limit
+    // Calculate offset based on page and limit
     const offset = (page - 1) * limit;
     
-    // First, get only essential data with pagination
-    // Improved query - only select necessary fields and limit the data returned
-    const { data: imageData, error, count } = await supabase
+    // Get total count of images with a fast count-only query
+    const { count, error: countError } = await supabase
       .from('images')
-      .select('id, url, prompt, created_at, user_id', { count: 'exact' })
+      .select('*', { count: 'exact', head: true })
+      .abortSignal(AbortSignal.timeout(5000)); // 5 second timeout for count query
+    
+    if (countError) {
+      console.error('Error fetching image count:', countError);
+      // Continue anyway, we can still fetch the images
+    }
+    
+    // Get images created by the current user with pagination
+    // Only select essential fields to reduce data transfer
+    const { data: images, error: imagesError } = await supabase
+      .from('images')
+      .select('id, url, prompt, created_at, user_id, raw_json, variation_group_id, variation_index')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
-      .timeout(10000); // Add 10-second timeout to prevent long-running queries
+      .abortSignal(AbortSignal.timeout(10000)); // 10 second timeout
     
-    if (error) {
-      throw error;
-    }
-
-    // Early return if no images found
-    if (!imageData || imageData.length === 0) {
-      return { images: [], totalCount: 0, hasMore: false };
+    if (imagesError) {
+      throw imagesError;
     }
     
-    // Fetch reference images for all fetched images in a single batch query
-    // This reduces the number of database requests
-    const imageIds = imageData.map(img => img.id);
-    const { data: refData, error: refError } = await supabase
+    // Fast return if no images
+    if (!images || images.length === 0) {
+      return { images: [], totalCount: count || 0, hasMore: false };
+    }
+    
+    // Get all image IDs for batch reference fetch
+    const imageIds = images.map(img => img.id);
+    
+    // Batch fetch reference images in a separate query
+    // This prevents the SELECT query from becoming too complex
+    const { data: refImages, error: refError } = await supabase
       .from('reference_images')
       .select('image_id, id, url')
       .in('image_id', imageIds)
-      .timeout(5000);
+      .abortSignal(AbortSignal.timeout(5000)); // 5 second timeout
     
     if (refError) {
       console.warn('Error fetching reference images:', refError);
-      // Continue with the main images even if reference images fail
+      // Continue without reference images - not critical
     }
     
-    // Map reference images to their respective images
-    const refMap: Record<string, ReferenceImage[]> = {};
-    if (refData) {
-      refData.forEach(ref => {
-        if (!refMap[ref.image_id]) {
-          refMap[ref.image_id] = [];
+    // Create a map of image_id -> reference_images[] for quick lookups
+    const refImageMap: Record<string, ReferenceImage[]> = {};
+    if (refImages) {
+      refImages.forEach(ref => {
+        if (!refImageMap[ref.image_id]) {
+          refImageMap[ref.image_id] = [];
         }
-        refMap[ref.image_id].push({
+        refImageMap[ref.image_id].push({
           id: ref.id,
           url: ref.url
         });
       });
     }
     
-    // Transform the data into the expected format
-    const images: GeneratedImage[] = imageData.map(img => ({
-      id: img.id,
-      url: img.url,
-      prompt: img.prompt,
-      created_at: img.created_at,
-      user_id: img.user_id,
-      reference_images: refMap[img.id] || []
+    // Map images to the expected format
+    const generatedImages: GeneratedImage[] = images.map(image => ({
+      id: image.id,
+      url: image.url,
+      prompt: image.prompt,
+      created_at: image.created_at,
+      reference_images: refImageMap[image.id] || [],
+      raw_json: image.raw_json,
+      variation_group_id: image.variation_group_id,
+      variation_index: image.variation_index
     }));
     
-    return {
-      images,
-      totalCount: count || 0,
-      hasMore: (offset + limit) < (count || 0)
-    };
+    // Calculate if there are more images to load
+    const totalCount = count || 0;
+    const hasMore = offset + limit < totalCount;
     
+    return {
+      images: generatedImages,
+      totalCount,
+      hasMore
+    };
   } catch (error) {
-    console.error('Error in fetchGeneratedImages:', error);
+    console.error('Error fetching images:', error);
+    
+    // Provide a more helpful error message for timeout errors
     if (error instanceof Error) {
-      if (error.message.includes('timeout') || 
-         (error as PostgrestError).message?.includes('timeout')) {
-        throw new Error('The database query timed out. Please try again with fewer images.');
+      if (error.message.includes('timeout') || error.message.includes('timed out')) {
+        throw new Error('The database query timed out. Try viewing fewer images at once or adding more specific filters.');
       }
       throw error;
     }
-    throw new Error('An unexpected error occurred while fetching images');
-  }
-}
-
-/**
- * Delete a generated image by ID
- */
-export async function deleteGeneratedImage(id: string): Promise<void> {
-  const { error } = await supabase
-    .from('images')
-    .delete()
-    .eq('id', id);
-  
-  if (error) {
-    throw new Error(`Failed to delete image: ${error.message}`);
-  }
-}
-
-/**
- * Fetch details for a single image
- */
-export async function fetchImageDetails(id: string): Promise<GeneratedImage> {
-  try {
-    // Fetch the image data
-    const { data: imageData, error } = await supabase
-      .from('images')
-      .select('id, url, prompt, created_at, user_id, raw_json')
-      .eq('id', id)
-      .single();
-    
-    if (error) {
-      throw error;
-    }
-    
-    if (!imageData) {
-      throw new Error('Image not found');
-    }
-    
-    // Fetch reference images
-    const { data: refData, error: refError } = await supabase
-      .from('reference_images')
-      .select('id, url')
-      .eq('image_id', id);
-    
-    if (refError) {
-      console.warn('Error fetching reference images:', refError);
-      // Continue even if reference images fail
-    }
-    
-    // Transform into expected format
-    return {
-      id: imageData.id,
-      url: imageData.url,
-      prompt: imageData.prompt,
-      created_at: imageData.created_at,
-      user_id: imageData.user_id,
-      raw_json: imageData.raw_json,
-      reference_images: refData || []
-    };
-    
-  } catch (error) {
-    console.error('Error in fetchImageDetails:', error);
     throw error;
   }
 }
 
-/**
- * Get the user's current credits from their profile
- */
-export async function getUserCredits(): Promise<{
-  credits: number;
-  creditsUsed: number;
-}> {
+// Delete a generated image and its storage file
+export async function deleteGeneratedImage(imageId: string): Promise<void> {
+  // Get the current user
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) {
+    throw new Error('User not authenticated');
+  }
+  
+  // First check if the image belongs to the current user
+  const { data: image, error: imageError } = await supabase
+    .from('images')
+    .select('id, user_id, url')
+    .eq('id', imageId)
+    .single();
+  
+  if (imageError) {
+    throw new Error(`Error finding image: ${imageError.message}`);
+  }
+  
+  if (!image || image.user_id !== user.id) {
+    throw new Error('You do not have permission to delete this image');
+  }
+  
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    // Try to delete the actual image file from storage if it's from Supabase
+    if (image.url && !image.url.startsWith('data:') && image.url.includes(import.meta.env.VITE_SUPABASE_URL)) {
+      try {
+        // Extract bucket and path from URL
+        const urlPath = new URL(image.url).pathname;
+        // Format: /storage/v1/object/public/[bucket]/[path]
+        const parts = urlPath.split('/');
+        const bucketIndex = parts.indexOf("public") + 1;
+        
+        if (bucketIndex > 0 && bucketIndex < parts.length) {
+          const bucket = parts[bucketIndex];
+          const path = parts.slice(bucketIndex + 1).join('/');
+          
+          // Delete the file from storage
+          await supabase.storage
+            .from(bucket)
+            .remove([path]);
+        }
+      } catch (storageError) {
+        // Log but continue - the database record is more important
+        console.error('Error deleting file from storage:', storageError);
+      }
+    }
+  } catch (storageError) {
+    // Log but continue - the database record is more important
+    console.error('Error deleting file from storage:', storageError);
+  }
+  
+  // Delete the image record
+  const { error: deleteError } = await supabase
+    .from('images')
+    .delete()
+    .eq('id', imageId);
+  
+  if (deleteError) {
+    throw new Error(`Error deleting image: ${deleteError.message}`);
+  }
+
+  // Also delete any associated asset entries
+  try {
+    const { error: assetDeleteError } = await supabase
+      .from('assets')
+      .delete()
+      .eq('source', 'generated')
+      .eq('original_url', image.url);
+      
+    if (assetDeleteError) {
+      console.error('Error deleting associated asset:', assetDeleteError);
+    }
+  } catch (assetError) {
+    // Log but don't fail the operation
+    console.error('Error cleaning up asset records:', assetError);
+  }
+}
+
+// Upload a reference image file using the new Assets service
+export async function uploadImageFile(file: File, path?: string): Promise<string> {
+  startOperation(`Uploading file: ${file.name} (${formatFileSize(file.size)})`);
+  
+  try {
+    // Upload using the new AssetService
+    const asset = await uploadFromBuffer(file, {
+      source: 'reference',
+      filename: file.name,
+      content_type: file.type,
+      size: file.size
+    });
     
-    if (!session) {
+    endOperation(`File upload completed`);
+    return asset.original_url;
+  } catch (err) {
+    logError(`Failed to upload file: ${err instanceof Error ? err.message : String(err)}`);
+    throw err;
+  }
+}
+
+// Check if user has enough credits to generate an image
+export async function checkUserCredits(): Promise<{ hasCredits: boolean, credits: number }> {
+  try {
+    // Get the current user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
       throw new Error('User not authenticated');
     }
     
+    // Check user's credits
+    const { data: userProfile, error } = await supabase
+      .from('user_profiles')
+      .select('credits')
+      .eq('user_id', user.id)
+      .single();
+    
+    if (error) {
+      // Handle the case where the profile doesn't exist
+      if (error.code === 'PGRST116') {
+        // Create a new profile with default credits
+        await supabase
+          .from('user_profiles')
+          .insert({
+            user_id: user.id,
+            credits: 10,
+            credits_used: 0
+          });
+        
+        return { hasCredits: true, credits: 10 };
+      }
+      
+      throw new Error(`Error checking user credits: ${error.message}`);
+    }
+    
+    // If profile doesn't exist or credits are null, create profile with default credits
+    if (!userProfile) {
+      await supabase
+        .from('user_profiles')
+        .insert({
+          user_id: user.id,
+          credits: 10,
+          credits_used: 0
+        });
+      
+      return { hasCredits: true, credits: 10 };
+    }
+    
+    // Check if the user has credits available
+    const credits = userProfile.credits || 0;
+    return { hasCredits: credits > 0, credits };
+  } catch (error) {
+    console.error('Error checking user credits:', error);
+    throw error;
+  }
+}
+
+// Deduct credits from user's account
+export async function deductUserCredit(count: number = 1): Promise<void> {
+  try {
+    // Get the current user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+    
+    log(`Deducting ${count} credits for user ${user.id}`);
+    
+    // Update the user's credits in the profile using the new function
+    const { error } = await supabase.rpc('deduct_multiple_credits', {
+      user_id_param: user.id,
+      amount: count
+    });
+    
+    if (error) {
+      throw new Error(`Error deducting credits: ${error.message}`);
+    }
+    
+    success(`Deducted ${count} credits successfully`);
+  } catch (error) {
+    console.error('Error deducting user credit:', error);
+    throw error;
+  }
+}
+
+// Get user's current credits
+export async function getUserCredits(): Promise<{ credits: number, creditsUsed: number }> {
+  try {
+    // Get the current user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+    
+    // Get user profile with credits
     const { data, error } = await supabase
       .from('user_profiles')
       .select('credits, credits_used')
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
       .single();
     
     if (error) {
-      throw error;
+      // If the profile doesn't exist, create it
+      if (error.code === 'PGRST116') {
+        const { data: newProfile, error: insertError } = await supabase
+          .from('user_profiles')
+          .insert({
+            user_id: user.id,
+            credits: 10,
+            credits_used: 0
+          })
+          .select('credits, credits_used')
+          .single();
+          
+        if (insertError) {
+          console.error('Error creating user profile:', insertError);
+          return { credits: 10, creditsUsed: 0 };
+        }
+        
+        return { 
+          credits: newProfile?.credits || 10, 
+          creditsUsed: newProfile?.credits_used || 0 
+        };
+      }
+      
+      console.error('Error fetching user credits:', error);
+      return { credits: 0, creditsUsed: 0 };
     }
     
-    return {
-      credits: data?.credits || 0,
-      creditsUsed: data?.credits_used || 0
+    return { 
+      credits: data?.credits || 0, 
+      creditsUsed: data?.credits_used || 0 
     };
   } catch (error) {
-    console.error('Error fetching user credits:', error);
-    return {
-      credits: 0,
-      creditsUsed: 0
-    };
+    console.error('Error getting user credits:', error);
+    return { credits: 0, creditsUsed: 0 };
   }
 }
 
-/**
- * Check if a user has enough credits for an operation
- */
-export async function checkUserCredits(): Promise<{
-  hasCredits: boolean;
-  credits: number;
-}> {
+// Function to ensure storage bucket exists
+export async function ensureStorageBucket(bucketName: string = 'images'): Promise<void> {
   try {
-    const { credits } = await getUserCredits();
-    return {
-      hasCredits: credits > 0,
-      credits
-    };
+    // Check if the bucket exists
+    const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+    
+    if (listError) {
+      throw new Error(`Error checking storage buckets: ${listError.message}`);
+    }
+    
+    const bucketExists = buckets?.some(bucket => bucket.name === bucketName);
+    
+    if (!bucketExists) {
+      // Create the bucket if it doesn't exist
+      const { error } = await supabase.storage.createBucket(bucketName, {
+        public: true
+      });
+      
+      if (error) {
+        throw new Error(`Error creating storage bucket: ${error.message}`);
+      }
+    }
   } catch (error) {
-    console.error('Error checking user credits:', error);
-    return {
-      hasCredits: false,
-      credits: 0
-    };
+    console.error('Error ensuring storage bucket exists:', error);
+    throw error;
   }
 }
 
-/**
- * Deduct a credit from the user's profile
- */
-export async function deductUserCredit(count = 1): Promise<boolean> {
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session) {
-      throw new Error('User not authenticated');
-    }
-    
-    // First get current credit count
-    const { data: profile, error: fetchError } = await supabase
-      .from('user_profiles')
-      .select('credits, credits_used')
-      .eq('user_id', session.user.id)
-      .single();
-    
-    if (fetchError) {
-      throw fetchError;
-    }
-    
-    if (!profile || profile.credits < count) {
-      return false; // Not enough credits
-    }
-    
-    // Update credits
-    const { error: updateError } = await supabase
-      .from('user_profiles')
-      .update({
-        credits: profile.credits - count,
-        credits_used: (profile.credits_used || 0) + count
-      })
-      .eq('user_id', session.user.id);
-    
-    if (updateError) {
-      throw updateError;
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('Error deducting user credit:', error);
-    return false;
-  }
-}
-
-/**
- * Ensure the storage bucket exists for images
- */
-export async function ensureStorageBucket(): Promise<void> {
-  // This is a placeholder - in real implementation,
-  // this might check if the bucket exists and create it if needed
-  return Promise.resolve();
-}
-
-/**
- * Upload an image file to storage
- */
-export async function uploadImageFile(file: File): Promise<string> {
-  try {
-    // Generate a unique filename
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
-    const filePath = `uploads/${fileName}`;
-    
-    // Upload the file
-    const { error } = await supabase.storage
-      .from('images')
-      .upload(filePath, file);
-    
-    if (error) {
-      throw error;
-    }
-    
-    // Get public URL
-    const { data } = supabase.storage
-      .from('images')
-      .getPublicUrl(filePath);
-    
-    return data.publicUrl;
-  } catch (error) {
-    console.error('Error uploading file:', error);
-    throw new Error('Failed to upload image file');
-  }
-}
-
-/**
- * Generate an image using the AI service
- */
+// Function for generating images - now handles multiple variations in a single API call
 export async function generateImage(
-  files: File[],
+  referenceFiles: File[], 
   prompt: string,
-  referenceUrls: string[] = [],
+  referenceImageUrls: string[] = [],
   variants: number = 1,
-  layout: string = 'auto'
-): Promise<{
-  urls: string[];
-  variationGroupId: string;
-  rawJson: any;
-}> {
+  size: string = 'auto'
+): Promise<{ urls: string[], variationGroupId: string, rawJson: any }> {
+  startOperation(`Generating ${variants} images (${size}) with prompt: "${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}"`);
+  const startTime = Date.now();
+  
+  // First check if user has credits
+  const { hasCredits, credits } = await checkUserCredits();
+  
+  if (!hasCredits) {
+    throw new Error('You have no credits remaining. Please upgrade your plan to continue generating images.');
+  }
+  
+  if (credits < variants) {
+    throw new Error(`You need ${variants} credits for this generation but only have ${credits} available.`);
+  }
+  
+  // Ensure the storage bucket exists
+  await ensureStorageBucket('images');
+  
+  // Upload all reference files to get their URLs if files are provided
+  let allReferenceImageUrls = [...referenceImageUrls];
+  
+  if (referenceFiles.length > 0) {
+    try {
+      startOperation(`Uploading ${referenceFiles.length} images: ${referenceFiles.map(f => f.name).join(', ')}`);
+      const uploadStart = Date.now();
+      
+      const uploadPromises = referenceFiles.map(file => uploadImageFile(file));
+      const uploadedUrls = await Promise.all(uploadPromises);
+      allReferenceImageUrls = [...allReferenceImageUrls, ...uploadedUrls];
+      
+      endOperation(`References uploaded`, uploadStart);
+    } catch (uploadError) {
+      logError(`Failed to upload reference files: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`);
+      throw new Error(`Failed to upload reference images: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`);
+    }
+  }
+  
+  // Get the current session for authorization
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  if (!session) {
+    throw new Error('User not authenticated');
+  }
+  
   try {
-    // In a real implementation, this would call an API endpoint
-    // For now we'll simulate with a delay and mock response
+    // Map UI size to OpenAI size format
+    const mappedSize = mapLayoutToOpenAISize(size);
     
-    // Deduct credits first
-    const deducted = await deductUserCredit(variants);
-    if (!deducted) {
-      throw new Error('Insufficient credits for this operation');
+    // Call the edge function to generate the images
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    startOperation(`Calling generate-image function with ${variants} variants at size ${mappedSize}`);
+    
+    // Generate a unique variation group ID that will be used to group related images
+    const variationGroupId = uuidv4();
+    
+    // Create generation_task records for each variant BEFORE calling the API
+    // This ensures we have records in the database even if the edge function fails
+    const taskInserts = [];
+    for (let i = 0; i < variants; i++) {
+      taskInserts.push({
+        user_id: session.user.id,
+        prompt: prompt,
+        status: 'pending',
+        batch_id: variationGroupId,
+        total_in_batch: variants,
+        batch_index: i
+      });
     }
     
-    // Call the API (this would be replaced with actual API call)
-    // For now, simulate a delay
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // Insert all tasks
+    log(`Creating ${variants} generation tasks in database`);
+    const { error: taskInsertError } = await supabase
+      .from('generation_tasks')
+      .insert(taskInserts);
+      
+    if (taskInsertError) {
+      logError(`Failed to create generation tasks: ${taskInsertError.message}`);
+      throw new Error(`Failed to create generation tasks: ${taskInsertError.message}`);
+    }
     
-    // Generate mock response
-    const variationGroupId = `vg-${Math.random().toString(36).substring(2, 9)}`;
-    const urls = Array(variants).fill(0).map((_, i) => 
-      `https://picsum.photos/seed/${Math.random()}/${layout === 'landscape' ? '800/600' : 
-        layout === 'portrait' ? '600/800' : '700/700'}`
-    );
+    log(`Successfully created generation tasks with batch ID: ${variationGroupId}`);
     
-    return {
-      urls,
-      variationGroupId,
-      rawJson: {
-        prompt,
-        layout,
-        variant_count: variants
+    // Now call the edge function to generate the images
+    // Implement a timeout for the fetch operation
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      logError(`Fetch request timed out after 240 seconds`);
+    }, 240000);
+    
+    try {
+      // Create a compact payload summary for logging
+      const payloadSummary = {
+        reference_images_count: allReferenceImageUrls.length,
+        prompt: prompt.length > 50 ? prompt.substring(0, 50) + "..." : prompt,
+        variants,
+        size: mappedSize
+      };
+      
+      log(`Request payload summary: ${JSON.stringify(payloadSummary)}`);
+      
+      const response = await fetch(`${supabaseUrl}/functions/v1/generate-image`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+          'X-Client-Info': 'supabase-js/2.x'
+        },
+        body: JSON.stringify({
+          reference_images: allReferenceImageUrls,
+          prompt,
+          variants: variants,
+          size: mappedSize
+        }),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        // Try to get detailed error information
+        let errorDetails = '';
+        try {
+          const errorData = await response.json();
+          errorDetails = errorData.error || errorData.message || '';
+        } catch (e) {
+          // If JSON parsing fails, use the status text
+          errorDetails = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        
+        logError(`Edge function error response: ${errorDetails}`);
+        
+        // Update all task records to 'failed' status
+        for (let i = 0; i < variants; i++) {
+          await supabase
+            .from('generation_tasks')
+            .update({
+              status: 'failed',
+              error_message: `API Error: ${errorDetails}`,
+              updated_at: new Date().toISOString()
+            })
+            .eq('batch_id', variationGroupId)
+            .eq('batch_index', i);
+            
+          // Direct update of photoshoots
+          try {
+            await supabase
+              .from('photoshoots')
+              .update({
+                status: 'failed',
+                error_message: `API Error: ${errorDetails}`,
+                updated_at: new Date().toISOString()
+              })
+              .eq('batch_id', variationGroupId)
+              .eq('batch_index', i);
+              
+            log(`Directly updated photoshoot for failed request: batch=${variationGroupId}, index=${i}`);
+          } catch (photoshootError) {
+            logError(`Error updating photoshoot for failure: ${photoshootError}`);
+          }
+        }
+        
+        throw new Error(`Supabase edge function error: ${errorDetails}`);
       }
-    };
+      
+      const data = await response.json();
+      log(`Response received from edge function with ${data.urls?.length || 0} image URLs`);
+      
+      // Check if the response contains an error or fallback
+      if (data.fallback) {
+        logError(`Using fallback image due to OpenAI API error: ${data.error}`);
+        
+        // Update all task records to 'failed' status
+        for (let i = 0; i < variants; i++) {
+          await supabase
+            .from('generation_tasks')
+            .update({
+              status: 'failed',
+              error_message: `OpenAI API Error: ${data.error || 'Unknown error'}`,
+              updated_at: new Date().toISOString()
+            })
+            .eq('batch_id', variationGroupId)
+            .eq('batch_index', i);
+          
+          // Direct update of photoshoots
+          try {
+            await supabase
+              .from('photoshoots')
+              .update({
+                status: 'failed',
+                error_message: `OpenAI API Error: ${data.error || 'Unknown error'}`,
+                updated_at: new Date().toISOString()
+              })
+              .eq('batch_id', variationGroupId)
+              .eq('batch_index', i);
+              
+            log(`Directly updated photoshoot for failed API: batch=${variationGroupId}, index=${i}`);
+          } catch (photoshootError) {
+            logError(`Error updating photoshoot for API failure: ${photoshootError}`);
+          }
+        }
+        
+        // Still return the data, but include the error information
+        return {
+          urls: [data.urls[0]],
+          variationGroupId,
+          rawJson: {
+            error: data.error,
+            errorDetails: data.errorDetails,
+            warning: "Used fallback image due to OpenAI API error",
+            fallback: true,
+            originalPrompt: prompt,
+            errorId: data.errorId,
+            timestamp: data.timestamp,
+            variation_group_id: variationGroupId,
+            variation_index: 0
+          }
+        };
+      }
+      
+      // Update all task records to 'completed' status
+      for (let i = 0; i < variants && i < data.urls.length; i++) {
+        await supabase
+          .from('generation_tasks')
+          .update({
+            status: 'completed',
+            result_image_url: data.urls[i],
+            raw_response: JSON.stringify(data),
+            updated_at: new Date().toISOString()
+          })
+          .eq('batch_id', variationGroupId)
+          .eq('batch_index', i);
+          
+        // SIMPLIFIED APPROACH: Directly update the photoshoot record
+        // This makes the update immediate without relying on triggers
+        try {
+          await supabase
+            .from('photoshoots')
+            .update({
+              status: 'completed',
+              result_image_url: data.urls[i],
+              updated_at: new Date().toISOString()
+            })
+            .eq('batch_id', variationGroupId)
+            .eq('batch_index', i);
+            
+          log(`Directly updated photoshoot for batch=${variationGroupId}, index=${i}`);
+        } catch (photoshootError) {
+          logError(`Error updating photoshoot: ${photoshootError}`);
+          // Continue processing other images even if this one fails
+        }
+      }
+      
+      endOperation(`Image generation completed`, startTime);
+      return {
+        urls: data.urls,
+        variationGroupId,
+        rawJson: {
+          ...data,
+          variation_group_id: variationGroupId
+        }
+      };
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        logError(`Request timeout error: The server took too long to respond`);
+        
+        // Update all task records to 'failed' status
+        for (let i = 0; i < variants; i++) {
+          await supabase
+            .from('generation_tasks')
+            .update({
+              status: 'failed',
+              error_message: 'Request timed out after 240 seconds',
+              updated_at: new Date().toISOString()
+            })
+            .eq('batch_id', variationGroupId)
+            .eq('batch_index', i);
+            
+          // Direct update of photoshoots
+          try {
+            await supabase
+              .from('photoshoots')
+              .update({
+                status: 'failed',
+                error_message: 'Request timed out after 240 seconds',
+                updated_at: new Date().toISOString()
+              })
+              .eq('batch_id', variationGroupId)
+              .eq('batch_index', i);
+              
+            log(`Directly updated photoshoot for failed request: batch=${variationGroupId}, index=${i}`);
+          } catch (photoshootError) {
+            logError(`Error updating photoshoot for failure: ${photoshootError}`);
+          }
+        }
+        
+        throw new Error('Request timed out. The Supabase Function took too long to respond (over 240 seconds). This may indicate high server load or complex image generation.');
+      }
+      
+      // Enhanced error handling to provide more context
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logError(`Error in fetch operation: ${errorMsg}`);
+      
+      // Update all task records to 'failed' status
+      for (let i = 0; i < variants; i++) {
+        await supabase
+          .from('generation_tasks')
+          .update({
+            status: 'failed',
+            error_message: errorMsg,
+            updated_at: new Date().toISOString()
+          })
+          .eq('batch_id', variationGroupId)
+          .eq('batch_index', i);
+          
+        // Direct update of photoshoots
+        try {
+          await supabase
+            .from('photoshoots')
+            .update({
+              status: 'failed',
+              error_message: errorMsg,
+              updated_at: new Date().toISOString()
+            })
+            .eq('batch_id', variationGroupId)
+            .eq('batch_index', i);
+            
+          log(`Directly updated photoshoot for error: batch=${variationGroupId}, index=${i}`);
+        } catch (photoshootError) {
+          logError(`Error updating photoshoot for error: ${photoshootError}`);
+        }
+      }
+      
+      // Identify the source of the error
+      if (errorMsg.includes('NetworkError') || errorMsg.includes('network')) {
+        throw new Error(`Network error connecting to Supabase: ${errorMsg}`);
+      } else if (errorMsg.includes('Supabase')) {
+        throw new Error(`Supabase error: ${errorMsg}`);
+      } else if (errorMsg.includes('OpenAI')) {
+        throw new Error(`OpenAI API error: ${errorMsg}`);
+      } else {
+        throw new Error(`Error generating image: ${errorMsg}`);
+      }
+    } finally {
+      clearTimeout(timeoutId);
+    }
   } catch (error) {
-    console.error('Error generating image:', error);
-    throw error;
+    logError(`Error in image generation process: ${error instanceof Error ? error.message : String(error)}`);
+    
+    // Ensure all task records are updated to 'failed' status
+    try {
+      for (let i = 0; i < variants; i++) {
+        await supabase
+          .from('generation_tasks')
+          .update({
+            status: 'failed',
+            error_message: error instanceof Error ? error.message : String(error),
+            updated_at: new Date().toISOString()
+          })
+          .eq('batch_id', variationGroupId)
+          .eq('batch_index', i);
+          
+        // Direct update of photoshoots
+        try {
+          await supabase
+            .from('photoshoots')
+            .update({
+              status: 'failed',
+              error_message: error instanceof Error ? error.message : String(error),
+              updated_at: new Date().toISOString()
+            })
+            .eq('batch_id', variationGroupId)
+            .eq('batch_index', i);
+        } catch (photoshootError) {
+          logError(`Error updating photoshoot in error handler: ${photoshootError}`);
+        }
+      }
+    } catch (updateError) {
+      logError(`Failed to update task statuses to failed: ${updateError}`);
+      // Continue with the original error
+    }
+    
+    // Provide more detailed error information
+    if (error instanceof Error) {
+      // Try to categorize the error source
+      if (error.message.includes('storage')) {
+        throw new Error(`Storage error: ${error.message}`);
+      } else if (error.message.includes('credit')) {
+        throw new Error(`Credit error: ${error.message}`);
+      } else if (error.message.includes('timeout')) {
+        throw new Error(`Timeout error: ${error.message}`);
+      } else if (error.message.includes('OpenAI')) {
+        throw new Error(`OpenAI error: ${error.message}`);
+      } else if (error.message.includes('Supabase')) {
+        throw new Error(`Supabase error: ${error.message}`);
+      } else {
+        throw error;
+      }
+    } else {
+      throw new Error('An unknown error occurred during image generation');
+    }
   }
 }
 
-/**
- * Save a generated image to the database
- */
+// Save a single generated image to the database
 export async function saveGeneratedImage(
-  url: string,
+  imageUrl: string,
   prompt: string,
-  referenceUrls: string[] = [],
-  rawJson: any = {}
+  referenceImageUrls: string[] = [],
+  rawJson?: any
 ): Promise<string> {
+  // Get the current user
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) {
+    throw new Error('User not authenticated');
+  }
+  
+  // If the image URL is a data URL, upload it first
+  let finalImageUrl = imageUrl;
+  if (imageUrl.startsWith('data:')) {
+    try {
+      // Convert the data URL to a Blob
+      const res = await fetch(imageUrl);
+      const blob = await res.blob();
+      
+      // Upload the image using the new Asset service
+      const asset = await uploadFromBuffer(blob, {
+        source: 'generated',
+        filename: `generated-${Date.now()}.png`,
+        content_type: 'image/png',
+        variation_group_id: rawJson?.variation_group_id,
+        variation_index: rawJson?.variation_index
+      });
+      
+      finalImageUrl = asset.original_url;
+    } catch (uploadError) {
+      logError(`Error uploading data URL: ${uploadError}`);
+      // Continue with the data URL if upload fails
+    }
+  }
+  
+  // Create a new record in the images table
+  const { data: imageData, error: imageError } = await supabase
+    .from('images')
+    .insert({
+      url: finalImageUrl,
+      prompt,
+      user_id: user.id,
+      raw_json: rawJson ? JSON.stringify(rawJson) : null,
+      variation_group_id: rawJson?.variation_group_id,
+      variation_index: rawJson?.variation_index
+    })
+    .select('id')
+    .single();
+  
+  if (imageError) {
+    throw new Error(`Error saving image: ${imageError.message}`);
+  }
+  
+  success(`Image saved to database with ID: ${imageData.id}`);
+  
+  // Direct update to photoshoots table
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session) {
-      throw new Error('User not authenticated');
-    }
-    
-    // Insert the image
-    const { data: imageData, error: imageError } = await supabase
-      .from('images')
-      .insert({
-        url,
-        prompt,
-        user_id: session.user.id,
-        raw_json: typeof rawJson === 'string' ? rawJson : JSON.stringify(rawJson),
-        variation_group_id: rawJson.variation_group_id,
-        variation_index: rawJson.variation_index
-      })
-      .select('id')
-      .single();
-    
-    if (imageError) {
-      throw imageError;
-    }
-    
-    // If there are reference URLs, save them
-    if (referenceUrls.length > 0 && imageData?.id) {
-      const refEntries = referenceUrls.map(refUrl => ({
-        image_id: imageData.id,
-        url: refUrl
-      }));
-      
-      const { error: refError } = await supabase
-        .from('reference_images')
-        .insert(refEntries);
-      
-      if (refError) {
-        console.warn('Error saving reference images:', refError);
-        // Continue even if reference images fail to save
+    if (rawJson?.variation_group_id && rawJson?.variation_index !== undefined) {
+      // Check if there's a corresponding photoshoot
+      const { data: photoshoots } = await supabase
+        .from('photoshoots')
+        .select('id, status')
+        .eq('variation_group_id', rawJson.variation_group_id)
+        .eq('variation_index', rawJson.variation_index)
+        .eq('status', 'processing');
+        
+      if (photoshoots && photoshoots.length > 0) {
+        // Update the photoshoot
+        await supabase
+          .from('photoshoots')
+          .update({
+            status: 'completed',
+            result_image_url: finalImageUrl,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', photoshoots[0].id);
+          
+        log(`Directly updated photoshoot ${photoshoots[0].id} from saveGeneratedImage`);
+      } else {
+        // Try with batch_id instead
+        const { data: batchPhotoshoots } = await supabase
+          .from('photoshoots')
+          .select('id, status')
+          .eq('batch_id', rawJson.variation_group_id)
+          .eq('batch_index', rawJson.variation_index)
+          .eq('status', 'processing');
+          
+        if (batchPhotoshoots && batchPhotoshoots.length > 0) {
+          await supabase
+            .from('photoshoots')
+            .update({
+              status: 'completed',
+              result_image_url: finalImageUrl,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', batchPhotoshoots[0].id);
+            
+          log(`Directly updated photoshoot ${batchPhotoshoots[0].id} using batch_id from saveGeneratedImage`);
+        } else {
+          log(`No matching processing photoshoot found for variation_group_id=${rawJson.variation_group_id}, index=${rawJson.variation_index}`);
+        }
       }
     }
-    
-    return imageData?.id || '';
-  } catch (error) {
-    console.error('Error saving generated image:', error);
-    throw error;
+  } catch (photoshootError) {
+    logError(`Error updating photoshoot in saveGeneratedImage: ${photoshootError}`);
+    // Continue without failing the save operation
   }
+  
+  // Also create a generation_task record to ensure proper synchronization
+  try {
+    const { error: taskError } = await supabase
+      .from('generation_tasks')
+      .insert({
+        user_id: user.id,
+        prompt,
+        status: 'completed',
+        reference_image_urls: referenceImageUrls,
+        result_image_url: finalImageUrl,
+        raw_response: rawJson ? JSON.stringify(rawJson) : null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        batch_id: rawJson?.variation_group_id,
+        batch_index: rawJson?.variation_index || 0,
+        total_in_batch: 1
+      });
+      
+    if (taskError) {
+      logError(`Warning: Failed to create task record: ${taskError.message}`);
+      // We don't throw here as the image was still saved successfully
+    }
+  } catch (taskError) {
+    logError(`Warning: Exception creating task record: ${taskError}`);
+    // Continue without failing the save operation
+  }
+  
+  return imageData.id;
 }

@@ -104,7 +104,7 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
     }
   }, [refreshTrigger]);
 
-  // Handle loading more images
+  // Handle loading more images when needed
   const handleLoadMore = () => {
     if (!isLoadingMore && hasMore) {
       loadImages(currentPage + 1, true);
