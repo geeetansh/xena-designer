@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { ThemeProvider } from '@/components/ui/theme-provider';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
+import { AppDataProvider } from '@/contexts/AppDataContext';
 
 // Pages
 import SignUpPage from '@/pages/SignUpPage';
@@ -158,7 +159,9 @@ function App() {
   // Wrap content with authenticated layout for protected routes
   const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return session ? (
-      <DashboardLayout>{children}</DashboardLayout>
+      <AppDataProvider>
+        <DashboardLayout>{children}</DashboardLayout>
+      </AppDataProvider>
     ) : (
       <Navigate to="/login" replace state={{ from: location }} />
     );

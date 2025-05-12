@@ -7,6 +7,7 @@ import { Loader2, Sparkles, Code, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAppData } from '@/contexts/AppDataContext';
 
 export default function GalleryPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -19,6 +20,9 @@ export default function GalleryPage() {
   const [activeTab, setActiveTab] = useState('images');
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const navigate = useNavigate();
+  
+  // Use the refreshData function from AppDataContext
+  const { refreshData } = useAppData();
 
   // Listen for events to view specific image JSON logs
   useEffect(() => {
@@ -124,6 +128,7 @@ export default function GalleryPage() {
                           batches.filter(b => b.batchId !== payload.new.batch_id)
                         );
                         setRefreshTrigger(prev => prev + 1); // Refresh gallery when batch completes
+                        refreshData(); // Refresh app data when batch completes
                       }, 2000);
                     }
                     
@@ -155,7 +160,7 @@ export default function GalleryPage() {
       console.log('Cleaning up subscription');
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [refreshData]);
   
   // Calculate combined progress across all active batches
   const calculateProgress = () => {
@@ -172,6 +177,7 @@ export default function GalleryPage() {
   // Handle refresh for both tabs
   const handleRefresh = () => {
     setRefreshTrigger(prev => prev + 1);
+    refreshData(); // Also refresh app data
   };
 
   return (
