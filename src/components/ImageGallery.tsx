@@ -53,6 +53,9 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const dataFetchedRef = useRef(false);
   const navigate = useNavigate();
+  
+  // Add a ref to track and abort in-flight requests
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Modified to use pagination with a smaller batch size (10 per page)
   // Includes better error handling and timeout recovery
@@ -69,8 +72,24 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
         }
       }
       
+      // Abort any in-flight request before starting a new one
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      
+      // Create a new AbortController with a longer timeout (15 seconds)
+      abortControllerRef.current = new AbortController();
+      const timeoutId = setTimeout(() => {
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+      }, 15000); // 15 seconds timeout
+      
       // Limit to 10 items per page (reduced from 20 to prevent timeouts)
-      const { images: fetchedImages, totalCount: total, hasMore: more } = await fetchGeneratedImages(10, page);
+      const { images: fetchedImages, totalCount: total, hasMore: more } = await fetchGeneratedImages(10, page, abortControllerRef.current.signal);
+      
+      // Clear the timeout since request completed successfully
+      clearTimeout(timeoutId);
       
       if (append) {
         setImages(prevImages => [...prevImages, ...fetchedImages]);
@@ -82,6 +101,12 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
       setHasMore(more);
       setCurrentPage(page);
     } catch (error) {
+      // Don't show errors for intentionally aborted requests
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        console.log('Request was aborted intentionally');
+        return;
+      }
+      
       console.error('Error fetching images:', error);
       setError(error instanceof Error ? error.message : "An unexpected error occurred");
       
@@ -97,6 +122,15 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
       dataFetchedRef.current = true;
     }
   };
+
+  // Clean up abort controller on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   // Only check session once on initial load
   useEffect(() => {
