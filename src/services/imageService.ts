@@ -166,3 +166,256 @@ export async function fetchImageDetails(id: string): Promise<GeneratedImage> {
     throw error;
   }
 }
+
+/**
+ * Get the user's current credits from their profile
+ */
+export async function getUserCredits(): Promise<{
+  credits: number;
+  creditsUsed: number;
+}> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      throw new Error('User not authenticated');
+    }
+    
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('credits, credits_used')
+      .eq('user_id', session.user.id)
+      .single();
+    
+    if (error) {
+      throw error;
+    }
+    
+    return {
+      credits: data?.credits || 0,
+      creditsUsed: data?.credits_used || 0
+    };
+  } catch (error) {
+    console.error('Error fetching user credits:', error);
+    return {
+      credits: 0,
+      creditsUsed: 0
+    };
+  }
+}
+
+/**
+ * Check if a user has enough credits for an operation
+ */
+export async function checkUserCredits(): Promise<{
+  hasCredits: boolean;
+  credits: number;
+}> {
+  try {
+    const { credits } = await getUserCredits();
+    return {
+      hasCredits: credits > 0,
+      credits
+    };
+  } catch (error) {
+    console.error('Error checking user credits:', error);
+    return {
+      hasCredits: false,
+      credits: 0
+    };
+  }
+}
+
+/**
+ * Deduct a credit from the user's profile
+ */
+export async function deductUserCredit(count = 1): Promise<boolean> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      throw new Error('User not authenticated');
+    }
+    
+    // First get current credit count
+    const { data: profile, error: fetchError } = await supabase
+      .from('user_profiles')
+      .select('credits, credits_used')
+      .eq('user_id', session.user.id)
+      .single();
+    
+    if (fetchError) {
+      throw fetchError;
+    }
+    
+    if (!profile || profile.credits < count) {
+      return false; // Not enough credits
+    }
+    
+    // Update credits
+    const { error: updateError } = await supabase
+      .from('user_profiles')
+      .update({
+        credits: profile.credits - count,
+        credits_used: (profile.credits_used || 0) + count
+      })
+      .eq('user_id', session.user.id);
+    
+    if (updateError) {
+      throw updateError;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error deducting user credit:', error);
+    return false;
+  }
+}
+
+/**
+ * Ensure the storage bucket exists for images
+ */
+export async function ensureStorageBucket(): Promise<void> {
+  // This is a placeholder - in real implementation,
+  // this might check if the bucket exists and create it if needed
+  return Promise.resolve();
+}
+
+/**
+ * Upload an image file to storage
+ */
+export async function uploadImageFile(file: File): Promise<string> {
+  try {
+    // Generate a unique filename
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+    const filePath = `uploads/${fileName}`;
+    
+    // Upload the file
+    const { error } = await supabase.storage
+      .from('images')
+      .upload(filePath, file);
+    
+    if (error) {
+      throw error;
+    }
+    
+    // Get public URL
+    const { data } = supabase.storage
+      .from('images')
+      .getPublicUrl(filePath);
+    
+    return data.publicUrl;
+  } catch (error) {
+    console.error('Error uploading file:', error);
+    throw new Error('Failed to upload image file');
+  }
+}
+
+/**
+ * Generate an image using the AI service
+ */
+export async function generateImage(
+  files: File[],
+  prompt: string,
+  referenceUrls: string[] = [],
+  variants: number = 1,
+  layout: string = 'auto'
+): Promise<{
+  urls: string[];
+  variationGroupId: string;
+  rawJson: any;
+}> {
+  try {
+    // In a real implementation, this would call an API endpoint
+    // For now we'll simulate with a delay and mock response
+    
+    // Deduct credits first
+    const deducted = await deductUserCredit(variants);
+    if (!deducted) {
+      throw new Error('Insufficient credits for this operation');
+    }
+    
+    // Call the API (this would be replaced with actual API call)
+    // For now, simulate a delay
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Generate mock response
+    const variationGroupId = `vg-${Math.random().toString(36).substring(2, 9)}`;
+    const urls = Array(variants).fill(0).map((_, i) => 
+      `https://picsum.photos/seed/${Math.random()}/${layout === 'landscape' ? '800/600' : 
+        layout === 'portrait' ? '600/800' : '700/700'}`
+    );
+    
+    return {
+      urls,
+      variationGroupId,
+      rawJson: {
+        prompt,
+        layout,
+        variant_count: variants
+      }
+    };
+  } catch (error) {
+    console.error('Error generating image:', error);
+    throw error;
+  }
+}
+
+/**
+ * Save a generated image to the database
+ */
+export async function saveGeneratedImage(
+  url: string,
+  prompt: string,
+  referenceUrls: string[] = [],
+  rawJson: any = {}
+): Promise<string> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      throw new Error('User not authenticated');
+    }
+    
+    // Insert the image
+    const { data: imageData, error: imageError } = await supabase
+      .from('images')
+      .insert({
+        url,
+        prompt,
+        user_id: session.user.id,
+        raw_json: typeof rawJson === 'string' ? rawJson : JSON.stringify(rawJson),
+        variation_group_id: rawJson.variation_group_id,
+        variation_index: rawJson.variation_index
+      })
+      .select('id')
+      .single();
+    
+    if (imageError) {
+      throw imageError;
+    }
+    
+    // If there are reference URLs, save them
+    if (referenceUrls.length > 0 && imageData?.id) {
+      const refEntries = referenceUrls.map(refUrl => ({
+        image_id: imageData.id,
+        url: refUrl
+      }));
+      
+      const { error: refError } = await supabase
+        .from('reference_images')
+        .insert(refEntries);
+      
+      if (refError) {
+        console.warn('Error saving reference images:', refError);
+        // Continue even if reference images fail to save
+      }
+    }
+    
+    return imageData?.id || '';
+  } catch (error) {
+    console.error('Error saving generated image:', error);
+    throw error;
+  }
+}
