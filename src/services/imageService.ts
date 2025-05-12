@@ -150,7 +150,3 @@ export async function getUserCredits(): Promise<{ credits: number; creditsUsed: 
     return { credits: 0, creditsUsed: 0 };
   }
 }
-
-export { getUserCredits }
-
-export { generateImage }
