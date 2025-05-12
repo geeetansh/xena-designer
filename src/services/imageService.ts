@@ -21,7 +21,7 @@ export interface GeneratedImage {
 /**
  * Fetch generated images with pagination and optimized query
  */
-export async function fetchGeneratedImages(limit = 10, page = 1): Promise<{
+export async function fetchGeneratedImages(limit = 8, page = 1): Promise<{
   images: GeneratedImage[];
   totalCount: number;
   hasMore: boolean;
@@ -37,7 +37,7 @@ export async function fetchGeneratedImages(limit = 10, page = 1): Promise<{
       .select('id, url, prompt, created_at, user_id', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
-      .timeout(10000); // Add 10-second timeout to prevent long-running queries
+      .timeout(5000); // Reduced timeout to 5 seconds
     
     if (error) {
       throw error;
@@ -55,7 +55,8 @@ export async function fetchGeneratedImages(limit = 10, page = 1): Promise<{
       .from('reference_images')
       .select('image_id, id, url')
       .in('image_id', imageIds)
-      .timeout(5000);
+      .limit(100) // Limit the number of reference images
+      .timeout(3000); // Shorter timeout for references
     
     if (refError) {
       console.warn('Error fetching reference images:', refError);
