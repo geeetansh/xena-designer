@@ -1,0 +1,4 @@
+/*
+  This migration has been removed as part of the cleanup to remove image optimization functionality.
+  The optimization fields and triggers have been removed in later migrations.
+*/
