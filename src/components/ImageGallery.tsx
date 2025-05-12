@@ -29,15 +29,6 @@ import { Download, FileJson, Eye, Image, Loader2, RefreshCw, Trash2 } from 'luci
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 
-// Storage keys for cache
-const GALLERY_CACHE_KEY = 'gallery_images_cache';
-const GALLERY_CACHE_TIMESTAMP_KEY = 'gallery_images_cache_timestamp';
-const GALLERY_CACHE_PAGE_KEY = 'gallery_current_page';
-const GALLERY_CACHE_TOTAL_KEY = 'gallery_total_count';
-const GALLERY_CACHE_HAS_MORE_KEY = 'gallery_has_more';
-// Cache expiration time - 30 minutes
-const CACHE_EXPIRATION_TIME = 30 * 60 * 1000;
-
 interface ImageGalleryProps {
   refreshTrigger: number;
   columns?: number;
@@ -60,86 +51,6 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const dataFetchedRef = useRef(false);
 
-  // Try to load cached data when component mounts
-  useEffect(() => {
-    const loadCachedData = () => {
-      try {
-        const cachedImages = localStorage.getItem(GALLERY_CACHE_KEY);
-        const cachedTimestamp = localStorage.getItem(GALLERY_CACHE_TIMESTAMP_KEY);
-        const cachedPage = localStorage.getItem(GALLERY_CACHE_PAGE_KEY);
-        const cachedTotal = localStorage.getItem(GALLERY_CACHE_TOTAL_KEY);
-        const cachedHasMore = localStorage.getItem(GALLERY_CACHE_HAS_MORE_KEY);
-        
-        // Check if cache exists and isn't expired
-        if (cachedImages && cachedTimestamp) {
-          const timestamp = parseInt(cachedTimestamp);
-          const now = Date.now();
-          
-          // Use cache if it's less than 30 minutes old
-          if (now - timestamp < CACHE_EXPIRATION_TIME) {
-            setImages(JSON.parse(cachedImages));
-            setCurrentPage(cachedPage ? parseInt(cachedPage) : 1);
-            setTotalCount(cachedTotal ? parseInt(cachedTotal) : 0);
-            setHasMore(cachedHasMore === 'true');
-            setLoading(false);
-            dataFetchedRef.current = true;
-            return true;
-          }
-        }
-      } catch (error) {
-        console.error('Error loading cached gallery data:', error);
-      }
-      return false;
-    };
-
-    // If we have a cache, use it; otherwise load from network
-    if (!loadCachedData()) {
-      loadImages(1, false);
-    }
-  }, []);  // Only run on initial mount, intentionally no dependencies
-
-  // Only respond to refreshTrigger when it's explicitly changed by the user
-  useEffect(() => {
-    if (refreshTrigger > 0) {
-      // Clear cache when manually refreshing
-      clearImageCache();
-      // Reset to page 1 when refreshing
-      loadImages(1, false);
-    }
-  }, [refreshTrigger]);
-
-  // Clear the image cache
-  const clearImageCache = () => {
-    try {
-      localStorage.removeItem(GALLERY_CACHE_KEY);
-      localStorage.removeItem(GALLERY_CACHE_TIMESTAMP_KEY);
-      localStorage.removeItem(GALLERY_CACHE_PAGE_KEY);
-      localStorage.removeItem(GALLERY_CACHE_TOTAL_KEY);
-      localStorage.removeItem(GALLERY_CACHE_HAS_MORE_KEY);
-    } catch (error) {
-      console.error('Error clearing image cache:', error);
-    }
-  };
-
-  // Save the current gallery state to cache
-  const updateImageCache = (
-    imagesData: GeneratedImage[], 
-    page: number, 
-    total: number, 
-    more: boolean
-  ) => {
-    try {
-      localStorage.setItem(GALLERY_CACHE_KEY, JSON.stringify(imagesData));
-      localStorage.setItem(GALLERY_CACHE_TIMESTAMP_KEY, Date.now().toString());
-      localStorage.setItem(GALLERY_CACHE_PAGE_KEY, page.toString());
-      localStorage.setItem(GALLERY_CACHE_TOTAL_KEY, total.toString());
-      localStorage.setItem(GALLERY_CACHE_HAS_MORE_KEY, more.toString());
-    } catch (error) {
-      console.error('Error saving image cache:', error);
-      // If we can't save to localStorage (e.g., privacy mode), continue silently
-    }
-  };
-
   // Modified to use pagination with a smaller batch size (10 per page)
   // Includes better error handling and timeout recovery
   const loadImages = async (page = 1, append = false) => {
@@ -158,22 +69,15 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
       // Limit to 10 items per page (reduced from 20 to prevent timeouts)
       const { images: fetchedImages, totalCount: total, hasMore: more } = await fetchGeneratedImages(10, page);
       
-      // Prepare the new image array
-      let newImages: GeneratedImage[];
       if (append) {
-        newImages = [...images, ...fetchedImages];
+        setImages(prevImages => [...prevImages, ...fetchedImages]);
       } else {
-        newImages = fetchedImages;
+        setImages(fetchedImages);
       }
       
-      // Update state
-      setImages(newImages);
       setTotalCount(total);
       setHasMore(more);
       setCurrentPage(page);
-      
-      // Cache the results
-      updateImageCache(newImages, page, total, more);
     } catch (error) {
       console.error('Error fetching images:', error);
       setError(error instanceof Error ? error.message : "An unexpected error occurred");
@@ -190,6 +94,15 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
       dataFetchedRef.current = true;
     }
   };
+
+  // Only check session once on initial load
+  useEffect(() => {
+    // Don't fetch data again if not necessary
+    if (!dataFetchedRef.current || refreshTrigger > 0) {
+      // Reset to page 1 when refreshing
+      loadImages(1, false);
+    }
+  }, [refreshTrigger]);
 
   // Handle loading more images when needed
   const handleLoadMore = () => {
@@ -258,12 +171,8 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
       }
       
       // Remove the image from the local state
-      const newImages = images.filter(img => img.id !== imageToDelete.id);
-      setImages(newImages);
+      setImages(images.filter(img => img.id !== imageToDelete.id));
       setTotalCount(prev => prev - 1);
-      
-      // Update the cache with the updated images array
-      updateImageCache(newImages, currentPage, totalCount - 1, hasMore);
       
       toast({
         title: "Image deleted",
