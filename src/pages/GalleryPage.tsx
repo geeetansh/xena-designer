@@ -10,6 +10,8 @@ import { useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Trash2, Eye } from 'lucide-react';
 
 export default function GalleryPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -339,7 +341,7 @@ export default function GalleryPage() {
     if (images.length === 0 && !loading) {
       return (
         <div className="flex flex-col items-center justify-center h-48 md:h-64 text-center">
-          <Image className="h-12 w-12 md:h-16 md:w-16 text-muted-foreground mb-3 md:mb-4" />
+          <ImageIcon className="h-12 w-12 md:h-16 md:w-16 text-muted-foreground mb-3 md:mb-4" />
           <h3 className="text-base md:text-lg font-medium">No images yet</h3>
           <p className="text-xs md:text-sm text-muted-foreground mt-1">
             Upload reference images and generate your first AI image
