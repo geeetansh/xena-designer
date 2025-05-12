@@ -29,7 +29,6 @@ import { Download, FileJson, Eye, Image, Loader2, RefreshCw, Trash2 } from 'luci
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getTransformedImageUrl } from '@/lib/utils';
-import { useNavigate } from 'react-router-dom';
 
 interface ImageGalleryProps {
   refreshTrigger: number;
@@ -52,10 +51,6 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
   const { toast } = useToast();
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const dataFetchedRef = useRef(false);
-  const navigate = useNavigate();
-  
-  // Add a ref to track and abort in-flight requests
-  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Modified to use pagination with a smaller batch size (10 per page)
   // Includes better error handling and timeout recovery
@@ -72,24 +67,8 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
         }
       }
       
-      // Abort any in-flight request before starting a new one
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      
-      // Create a new AbortController with a longer timeout (15 seconds)
-      abortControllerRef.current = new AbortController();
-      const timeoutId = setTimeout(() => {
-        if (abortControllerRef.current) {
-          abortControllerRef.current.abort();
-        }
-      }, 15000); // 15 seconds timeout
-      
       // Limit to 10 items per page (reduced from 20 to prevent timeouts)
-      const { images: fetchedImages, totalCount: total, hasMore: more } = await fetchGeneratedImages(10, page, abortControllerRef.current.signal);
-      
-      // Clear the timeout since request completed successfully
-      clearTimeout(timeoutId);
+      const { images: fetchedImages, totalCount: total, hasMore: more } = await fetchGeneratedImages(10, page);
       
       if (append) {
         setImages(prevImages => [...prevImages, ...fetchedImages]);
@@ -101,12 +80,6 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
       setHasMore(more);
       setCurrentPage(page);
     } catch (error) {
-      // Don't show errors for intentionally aborted requests
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        console.log('Request was aborted intentionally');
-        return;
-      }
-      
       console.error('Error fetching images:', error);
       setError(error instanceof Error ? error.message : "An unexpected error occurred");
       
@@ -122,15 +95,6 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
       dataFetchedRef.current = true;
     }
   };
-
-  // Clean up abort controller on unmount
-  useEffect(() => {
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, []);
 
   // Only check session once on initial load
   useEffect(() => {
@@ -274,7 +238,7 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
                     size="sm" 
                     variant="secondary"
                     className="rounded-full shadow-lg text-xs h-7 px-2 md:h-8 md:px-3"
-                    onClick={() => navigate(`/logs?imageId=${image.id}`)}
+                    onClick={() => setSelectedImage(image)}
                   >
                     <Eye className="h-3 w-3 md:h-4 md:w-4 mr-1" />
                     View
@@ -297,7 +261,7 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
         );
       })}
     </div>
-  ), [images, columns, navigate]);
+  ), [images, columns]);
 
   if (loading && images.length === 0) {
     return (
@@ -462,8 +426,11 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
                       // Close the current dialog
                       setSelectedImage(null);
                       
-                      // Navigate to the logs page with this image ID
-                      navigate(`/logs?imageId=${selectedImage.id}`);
+                      // Dispatch a custom event that App.tsx can listen for
+                      const event = new CustomEvent('viewImageJson', { 
+                        detail: { imageId: selectedImage.id } 
+                      });
+                      window.dispatchEvent(event);
                     }}
                   >
                     <FileJson className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
