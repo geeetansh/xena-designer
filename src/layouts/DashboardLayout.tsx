@@ -233,11 +233,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     <div className={`flex flex-col h-full ${mobile ? '' : 'w-64 border-r'}`}>
       {/* Logo */}
       <div className="py-6 px-4 mb-2">
-        <img 
-          src="https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6810f7c3918810c7e1a3fb13_Xena.png"
-          alt="Xena Logo"
-          className="h-10 object-contain mx-auto"
-        />
+        <NavLink to="/home">
+          <img 
+            src="https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6810f7c3918810c7e1a3fb13_Xena.png"
+            alt="Xena Logo"
+            className="h-10 object-contain mx-auto"
+          />
+        </NavLink>
       </div>
       
       {/* Main Navigation */}
@@ -389,11 +391,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Mobile Header */}
         <header className="md:hidden w-full px-4 py-3 border-b flex items-center justify-between bg-background sticky top-0 z-10">
           <div className="flex items-center">
-            <img 
-              src="https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6810f7c3918810c7e1a3fb13_Xena.png"
-              alt="Xena Logo"
-              className="h-9 object-contain"
-            />
+            <NavLink to="/home">
+              <img 
+                src="https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6810f7c3918810c7e1a3fb13_Xena.png"
+                alt="Xena Logo"
+                className="h-9 object-contain"
+              />
+            </NavLink>
           </div>
           
           {/* User profile button for mobile */}
