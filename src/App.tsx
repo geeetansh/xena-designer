@@ -155,15 +155,6 @@ function App() {
     );
   }
 
-  // Wrap content with authenticated layout for protected routes
-  const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-    return session ? (
-      <DashboardLayout>{children}</DashboardLayout>
-    ) : (
-      <Navigate to="/login" replace state={{ from: location }} />
-    );
-  };
-
   // Redirect authenticated users away from auth pages
   const AuthRoute = ({ children }: { children: React.ReactNode }) => {
     return !session ? (
@@ -192,18 +183,24 @@ function App() {
           <Route path="/login" element={<AuthRoute><LoginPage /></AuthRoute>} />
           
           {/* New Asset Page (full-page editor) */}
-          <Route path="/new-asset" element={<ProtectedRoute><NewAssetPage /></ProtectedRoute>} />
+          <Route path="/new-asset" element={
+            session ? <NewAssetPage /> : <Navigate to="/login" replace state={{ from: location }} />
+          } />
           
-          {/* Protected routes with DashboardLayout */}
-          <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
-          <Route path="/gallery" element={<ProtectedRoute><GalleryPage /></ProtectedRoute>} />
-          <Route path="/library" element={<ProtectedRoute><LibraryPage /></ProtectedRoute>} />
-          <Route path="/photoshoot" element={<ProtectedRoute><PhotoshootPage /></ProtectedRoute>} />
-          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-          <Route path="/products" element={<ProtectedRoute><ProductsPage /></ProtectedRoute>} />
-          
-          {/* Redirect /generate to /photoshoot */}
-          <Route path="/generate" element={<Navigate to="/photoshoot" replace />} />
+          {/* Protected routes - all nested under DashboardLayout */}
+          <Route element={
+            session ? <DashboardLayout /> : <Navigate to="/login" replace state={{ from: location }} />
+          }>
+            <Route path="/home" element={<HomePage />} />
+            <Route path="/gallery" element={<GalleryPage />} />
+            <Route path="/library" element={<LibraryPage />} />
+            <Route path="/photoshoot" element={<PhotoshootPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/products" element={<ProductsPage />} />
+            
+            {/* Redirect /generate to /photoshoot */}
+            <Route path="/generate" element={<Navigate to="/photoshoot" replace />} />
+          </Route>
           
           {/* Legacy dashboard routes - redirect to new URLs */}
           <Route path="/dashboard" element={<Navigate to="/home" replace />} />

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { getUserCredits } from '@/services/imageService';
 
@@ -23,11 +23,7 @@ import { SiShopify } from "react-icons/si";
 import { IoSettingsOutline } from "react-icons/io5";
 import { LuLibrary } from "react-icons/lu";
 
-interface DashboardLayoutProps {
-  children: React.ReactNode;
-}
-
-export default function DashboardLayout({ children }: DashboardLayoutProps) {
+export default function DashboardLayout() {
   const [imageCount, setImageCount] = useState(0);
   const [libraryCount, setLibraryCount] = useState(0);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -433,7 +429,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         
         {/* Main Content Area - Add bottom padding on mobile to account for navbar */}
         <main className="flex-1 w-full p-4 md:p-6 pb-20 md:pb-6">
-          {children}
+          <Outlet />
         </main>
         
         {/* Desktop Footer */}
