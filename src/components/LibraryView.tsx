@@ -421,7 +421,7 @@ export function LibraryView({ onLibraryUpdated }: LibraryViewProps) {
       {/* Image Viewer Dialog */}
       <Dialog open={isImageViewerOpen} onOpenChange={setIsImageViewerOpen}>
         {selectedImage && (
-          <DialogContent className="max-w-md md:max-w-4xl p-4 md:p-6">
+          <DialogContent className="max-w-md md:max-w-4xl sm:max-w-[60%] p-4 md:p-6">
             <DialogHeader>
               <DialogTitle className="text-base md:text-xl">Image Details</DialogTitle>
               <DialogDescription className="text-xs md:text-sm">

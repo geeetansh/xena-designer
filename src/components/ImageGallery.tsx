@@ -397,7 +397,7 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
       
       <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
         {selectedImage && (
-          <DialogContent className="max-w-4xl md:max-w-5xl p-4 md:p-6">
+          <DialogContent className="max-w-4xl md:max-w-5xl sm:max-w-[60%] p-4 md:p-6">
             <DialogHeader>
               <DialogTitle className="text-base md:text-lg">Generated image overview</DialogTitle>
             </DialogHeader>
