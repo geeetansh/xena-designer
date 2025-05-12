@@ -25,7 +25,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
-import { Download, FileJson, Eye, Image, Loader2, Trash2 } from 'lucide-react';
+import { Download, FileJson, Eye, Image, Loader2, RefreshCcw, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -45,13 +45,18 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
   const { toast } = useToast();
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const dataFetchedRef = useRef(false);
 
-  // Modified to use pagination with a smaller batch size (20 per page)
+  // Modified to use pagination with a smaller batch size (10 per page)
+  // Includes better error handling and timeout recovery
   const loadImages = async (page = 1, append = false) => {
     try {
+      setError(null);
+      
       // Only show loading state if there are no images yet or loading more
       if ((images.length === 0 && !append) || (append && page > 1)) {
         if (append) {
@@ -61,8 +66,8 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
         }
       }
       
-      // Limit to 20 items per page
-      const { images: fetchedImages, totalCount: total, hasMore: more } = await fetchGeneratedImages(20, page);
+      // Limit to 10 items per page (reduced from 20 to prevent timeouts)
+      const { images: fetchedImages, totalCount: total, hasMore: more } = await fetchGeneratedImages(10, page);
       
       if (append) {
         setImages(prevImages => [...prevImages, ...fetchedImages]);
@@ -75,6 +80,8 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
       setCurrentPage(page);
     } catch (error) {
       console.error('Error fetching images:', error);
+      setError(error instanceof Error ? error.message : "An unexpected error occurred");
+      
       toast({
         title: "Failed to load images",
         description: error instanceof Error ? error.message : "An unexpected error occurred",
@@ -83,6 +90,7 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
     } finally {
       setLoading(false);
       setIsLoadingMore(false);
+      setRetrying(false);
       dataFetchedRef.current = true;
     }
   };
@@ -101,6 +109,12 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
     if (!isLoadingMore && hasMore) {
       loadImages(currentPage + 1, true);
     }
+  };
+
+  // Retry loading images if there was an error
+  const handleRetry = () => {
+    setRetrying(true);
+    loadImages(currentPage, false);
   };
 
   const handleDownloadImage = async (imageUrl: string, prompt: string) => {
@@ -196,6 +210,7 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
                 src={image.url} 
                 alt={image.prompt}
                 className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                loading="lazy"
               />
             </div>
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end">
@@ -245,7 +260,44 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
     );
   }
 
-  if (images.length === 0 && !loading) {
+  if (error && images.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-48 md:h-64 text-center p-4 border border-red-200 bg-red-50 rounded-lg">
+        <div className="text-red-500 mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+        </div>
+        <h3 className="text-base md:text-lg font-medium text-red-700">Failed to load images</h3>
+        <p className="text-xs md:text-sm text-red-600 mt-2 mb-4">
+          {error}
+        </p>
+        <Button 
+          onClick={handleRetry} 
+          variant="outline" 
+          size="sm"
+          className="text-xs md:text-sm"
+          disabled={retrying}
+        >
+          {retrying ? (
+            <>
+              <Loader2 className="h-3 w-3 md:h-4 md:w-4 mr-2 animate-spin" />
+              Retrying...
+            </>
+          ) : (
+            <>
+              <RefreshCcw className="h-3 w-3 md:h-4 md:w-4 mr-2" />
+              Retry
+            </>
+          )}
+        </Button>
+      </div>
+    );
+  }
+
+  if (images.length === 0 && !loading && !error) {
     return (
       <div className="flex flex-col items-center justify-center h-48 md:h-64 text-center">
         <Image className="h-12 w-12 md:h-16 md:w-16 text-muted-foreground mb-3 md:mb-4" />
@@ -262,6 +314,39 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
       <div className="mb-3 md:mb-4">
         <h2 className="text-base md:text-lg font-medium">Your Images ({totalCount})</h2>
       </div>
+      
+      {/* Show error banner if there was an error but we have some images */}
+      {error && images.length > 0 && (
+        <div className="mb-4 p-3 border border-amber-200 bg-amber-50 rounded-lg flex items-center justify-between">
+          <div className="flex items-center">
+            <svg className="h-5 w-5 text-amber-500 mr-2" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span className="text-xs md:text-sm text-amber-800">{error}</span>
+          </div>
+          <Button 
+            onClick={handleRetry} 
+            variant="outline" 
+            size="sm"
+            className="text-xs border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200"
+            disabled={retrying}
+          >
+            {retrying ? (
+              <>
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                Retrying
+              </>
+            ) : (
+              <>
+                <RefreshCcw className="h-3 w-3 mr-1" />
+                Retry
+              </>
+            )}
+          </Button>
+        </div>
+      )}
       
       {/* Use memoized gallery to prevent unnecessary re-renders */}
       {imageGallery}
@@ -344,7 +429,7 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
                   <p className="text-xs md:text-sm border rounded-md p-2 md:p-3 bg-muted/50">{selectedImage.prompt}</p>
                 </div>
                 
-                {selectedImage.reference_images.length > 0 && (
+                {selectedImage.reference_images && selectedImage.reference_images.length > 0 && (
                   <div className="space-y-2 md:space-y-3">
                     <h3 className="font-medium text-sm md:text-base">Reference Images</h3>
                     <div className="grid grid-cols-2 gap-2">
