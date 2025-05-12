@@ -19,7 +19,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getCdnUrl } from '@/lib/utils';
+import { getTransformedImageUrl } from '@/lib/utils';
 
 interface ProductImagesModalProps {
   product: ShopifyProduct | null;
@@ -109,7 +109,11 @@ export function ProductImagesModal({ product, open, onOpenChange }: ProductImage
                 <div className="relative rounded-lg overflow-hidden bg-neutral-50 dark:bg-neutral-900 border">
                   <div className="aspect-square">
                     <img 
-                      src={getCdnUrl(images[selectedImageIndex].url)} 
+                      src={getTransformedImageUrl(images[selectedImageIndex].url, {
+                        width: 800,
+                        format: 'webp',
+                        quality: 90
+                      })} 
                       alt={images[selectedImageIndex].altText || `Product image ${selectedImageIndex + 1}`}
                       className="object-contain w-full h-full"
                       loading="lazy"
@@ -217,7 +221,13 @@ export function ProductImagesModal({ product, open, onOpenChange }: ProductImage
                       onClick={() => setSelectedImageIndex(index)}
                     >
                       <img 
-                        src={getCdnUrl(image.url)} 
+                        src={getTransformedImageUrl(image.url, {
+                          width: 150,
+                          height: 150,
+                          format: 'webp',
+                          quality: 80,
+                          resize: 'cover'
+                        })} 
                         alt={image.altText || `Thumbnail ${index + 1}`}
                         className="object-cover w-full h-full"
                         loading="lazy"

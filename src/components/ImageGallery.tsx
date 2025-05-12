@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Download, FileJson, Eye, Image, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getTransformedImageUrl } from '@/lib/utils';
 
 interface ImageGalleryProps {
   refreshTrigger: number;
@@ -195,30 +196,19 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
     setImageToDelete(image);
     setIsDeleteDialogOpen(true);
   };
-  
-  // Function to convert Supabase URL to CDN URL
-  const getCdnUrl = (url: string): string => {
-    try {
-      // Skip conversion for data URLs
-      if (url.startsWith('data:')) return url;
-      
-      // Use the URL constructor to parse the URL
-      const urlObj = new URL(url);
-      // Replace the host with cdn.xena.cx but keep the pathname
-      return `https://cdn.xena.cx${urlObj.pathname}`;
-    } catch (e) {
-      // If URL parsing fails, return the original URL
-      console.warn('Error converting to CDN URL:', e);
-      return url;
-    }
-  };
 
   // Memoize the image rendering to prevent unnecessary re-renders
   const imageGallery = useMemo(() => (
     <div className={`grid grid-cols-${columns === 2 ? '2' : '1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'} gap-2 md:gap-4`}>
       {images.map((image) => {
-        // Convert image URL to CDN URL
-        const cdnUrl = getCdnUrl(image.url);
+        // Transform the image URL for thumbnails
+        const thumbnailUrl = getTransformedImageUrl(image.url, {
+          width: 400,
+          height: 400,
+          quality: 80,
+          format: 'webp',
+          resize: 'cover'
+        });
         
         return (
           <div 
@@ -227,10 +217,17 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
           >
             <div className="aspect-square w-full h-full bg-background">
               <img
-                src={cdnUrl} 
+                src={thumbnailUrl} 
                 alt={image.prompt}
                 className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                 loading="lazy"
+                decoding="async"
+                srcSet={`
+                  ${getTransformedImageUrl(image.url, { width: 200, format: 'webp' })} 200w,
+                  ${getTransformedImageUrl(image.url, { width: 400, format: 'webp' })} 400w,
+                  ${getTransformedImageUrl(image.url, { width: 600, format: 'webp' })} 600w
+                `}
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
               />
             </div>
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end">
@@ -407,7 +404,7 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
               <div className="space-y-3 md:space-y-4">
                 <div className="rounded-lg overflow-hidden">
                   <img 
-                    src={getCdnUrl(selectedImage.url)} 
+                    src={getTransformedImageUrl(selectedImage.url, { width: 800, format: 'webp' })}
                     alt={selectedImage.prompt}
                     className="object-contain w-full h-full"
                     loading="lazy"
@@ -457,7 +454,12 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
                         return (
                           <div key={refImage.id} className="aspect-square border rounded-md overflow-hidden">
                             <img 
-                              src={getCdnUrl(refImage.url)} 
+                              src={getTransformedImageUrl(refImage.url, {
+                                width: 200,
+                                height: 200,
+                                format: 'webp',
+                                quality: 80
+                              })}
                               alt="Reference"
                               className="object-cover w-full h-full"
                               loading="lazy"

@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Loader2, ImageIcon, UploadCloud, Trash2, Download, Info } from 'lucide-react';
 import { fetchAssets, uploadFromBuffer, deleteAsset, Asset } from '@/services/AssetsService';
-import { getCdnUrl } from '@/lib/utils';
+import { getTransformedImageUrl } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -309,8 +309,14 @@ export function LibraryView({ onLibraryUpdated }: LibraryViewProps) {
               
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 md:gap-4">
                 {images.map((image) => {
-                  // Convert to CDN URL
-                  const cdnUrl = getCdnUrl(image.url);
+                  // Transform the image URL for thumbnails
+                  const thumbnailUrl = getTransformedImageUrl(image.url, {
+                    width: 300,
+                    height: 300,
+                    format: 'webp',
+                    quality: 80,
+                    resize: 'cover'
+                  });
                   
                   return (
                     <div 
@@ -319,10 +325,17 @@ export function LibraryView({ onLibraryUpdated }: LibraryViewProps) {
                     >
                       <div className="aspect-square w-full h-full bg-background">
                         <img
-                          src={cdnUrl} 
+                          src={thumbnailUrl}
                           alt={image.filename || "Library image"}
                           className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                           loading="lazy"
+                          decoding="async"
+                          srcSet={`
+                            ${getTransformedImageUrl(image.url, { width: 200, format: 'webp' })} 200w,
+                            ${getTransformedImageUrl(image.url, { width: 400, format: 'webp' })} 400w,
+                            ${getTransformedImageUrl(image.url, { width: 600, format: 'webp' })} 600w
+                          `}
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                         />
                       </div>
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end">
@@ -435,7 +448,11 @@ export function LibraryView({ onLibraryUpdated }: LibraryViewProps) {
                 <div className="rounded-lg overflow-hidden bg-neutral-50 dark:bg-neutral-900 border">
                   <div className="relative aspect-square">
                     <img 
-                      src={getCdnUrl(selectedImage.url)} 
+                      src={getTransformedImageUrl(selectedImage.url, {
+                        width: 600,
+                        quality: 90,
+                        format: 'webp'
+                      })}
                       alt={selectedImage.filename || "Library image"}
                       className="object-contain w-full h-full"
                       loading="lazy"
