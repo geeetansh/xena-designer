@@ -3,7 +3,7 @@ import { ImageGallery } from '@/components/ImageGallery';
 import { RawJsonView } from '@/components/RawJsonView';
 import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/lib/supabase';
-import { Loader2, Sparkles, Code, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Sparkles, Code, Image as ImageIcon, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -18,6 +18,7 @@ export default function GalleryPage() {
   }[]>([]);
   const [activeTab, setActiveTab] = useState('images');
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const navigate = useNavigate();
 
   // Listen for events to view specific image JSON logs
@@ -171,7 +172,13 @@ export default function GalleryPage() {
 
   // Handle refresh for both tabs
   const handleRefresh = () => {
+    setIsRefreshing(true);
     setRefreshTrigger(prev => prev + 1);
+    
+    // Reset refreshing state after a moment
+    setTimeout(() => {
+      setIsRefreshing(false);
+    }, 500);
   };
 
   return (
@@ -224,7 +231,13 @@ export default function GalleryPage() {
             size="sm" 
             onClick={handleRefresh}
             className="h-8 text-xs"
+            disabled={isRefreshing}
           >
+            {isRefreshing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5 mr-1" />
+            )}
             Refresh
           </Button>
         </div>
