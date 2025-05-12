@@ -43,7 +43,7 @@ import {
 } from '@/services/photoshootService';
 import { ProductImagesModal } from '@/components/ProductImagesModal';
 import { ShopifyProduct } from '@/services/shopifyService';
-import { getCdnUrl } from '@/lib/utils';
+import { getTransformedImageUrl } from '@/lib/utils';
 
 export default function PhotoshootPage() {
   const [photoshoots, setPhotoshoots] = useState<Photoshoot[]>([]);
@@ -373,9 +373,22 @@ export default function PhotoshootPage() {
           const isStuck = photoshoot.status === 'processing' && 
             new Date(photoshoot.updated_at).getTime() < Date.now() - 10 * 60 * 1000; // 10 minutes
           
-          // Convert URLs to CDN URLs
-          const productImageUrl = getCdnUrl(photoshoot.product_image_url);
-          const resultImageUrl = photoshoot.result_image_url ? getCdnUrl(photoshoot.result_image_url) : null;
+          // Transform image URLs for better performance
+          const productImageUrl = getTransformedImageUrl(photoshoot.product_image_url, {
+            width: 120,
+            height: 120,
+            format: 'webp',
+            quality: 80
+          });
+          
+          const resultImageUrl = photoshoot.result_image_url 
+            ? getTransformedImageUrl(photoshoot.result_image_url, {
+                width: 120,
+                height: 120,
+                format: 'webp',
+                quality: 80
+              }) 
+            : null;
           
           return (
             <Card
@@ -548,9 +561,22 @@ export default function PhotoshootPage() {
             const isStuck = photoshoot.status === 'processing' && 
               new Date(photoshoot.updated_at).getTime() < Date.now() - 10 * 60 * 1000; // 10 minutes
             
-            // Convert URLs to CDN URLs
-            const productImageUrl = getCdnUrl(photoshoot.product_image_url);
-            const resultImageUrl = photoshoot.result_image_url ? getCdnUrl(photoshoot.result_image_url) : null;
+            // Transform image URLs for better performance
+            const productImageUrl = getTransformedImageUrl(photoshoot.product_image_url, {
+              width: 150,
+              height: 150,
+              format: 'webp',
+              quality: 80
+            });
+            
+            const resultImageUrl = photoshoot.result_image_url 
+              ? getTransformedImageUrl(photoshoot.result_image_url, {
+                  width: 150,
+                  height: 150,
+                  format: 'webp',
+                  quality: 80
+                }) 
+              : null;
             
             return (
               <TableRow key={photoshoot.id} className={isStuck ? "bg-yellow-50/50 dark:bg-yellow-950/20" : ""}>

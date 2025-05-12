@@ -29,6 +29,7 @@ import { Download, FileJson, Eye, Image, Loader2, RefreshCw, Trash2 } from 'luci
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getTransformedImageUrl } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 interface ImageGalleryProps {
   refreshTrigger: number;
@@ -51,6 +52,7 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
   const { toast } = useToast();
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const dataFetchedRef = useRef(false);
+  const navigate = useNavigate();
 
   // Modified to use pagination with a smaller batch size (10 per page)
   // Includes better error handling and timeout recovery
@@ -238,7 +240,7 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
                     size="sm" 
                     variant="secondary"
                     className="rounded-full shadow-lg text-xs h-7 px-2 md:h-8 md:px-3"
-                    onClick={() => setSelectedImage(image)}
+                    onClick={() => navigate(`/logs?imageId=${image.id}`)}
                   >
                     <Eye className="h-3 w-3 md:h-4 md:w-4 mr-1" />
                     View
@@ -261,7 +263,7 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
         );
       })}
     </div>
-  ), [images, columns]);
+  ), [images, columns, navigate]);
 
   if (loading && images.length === 0) {
     return (
@@ -426,11 +428,8 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
                       // Close the current dialog
                       setSelectedImage(null);
                       
-                      // Dispatch a custom event that App.tsx can listen for
-                      const event = new CustomEvent('viewImageJson', { 
-                        detail: { imageId: selectedImage.id } 
-                      });
-                      window.dispatchEvent(event);
+                      // Navigate to the logs page with this image ID
+                      navigate(`/logs?imageId=${selectedImage.id}`);
                     }}
                   >
                     <FileJson className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />

@@ -20,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ProductImagesModal } from './ProductImagesModal';
 import { LazyImage } from './LazyImage';
 import { useNavigate } from 'react-router-dom';
+import { getTransformedImageUrl } from '@/lib/utils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -159,7 +160,13 @@ export function ProductsList() {
             <div className="aspect-square w-full h-full bg-background">
               {product.featuredImage ? (
                 <LazyImage 
-                  src={product.featuredImage.url}
+                  src={getTransformedImageUrl(product.featuredImage.url, {
+                    width: 400,
+                    height: 400,
+                    format: 'webp',
+                    quality: 80,
+                    resize: 'cover'
+                  })}
                   alt={product.featuredImage.altText || product.title}
                   className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                 />

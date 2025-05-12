@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
 import { ImageGallery } from '@/components/ImageGallery';
-import { RawJsonView } from '@/components/RawJsonView';
 import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/lib/supabase';
-import { Loader2, Sparkles, Code, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function GalleryPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -16,24 +14,9 @@ export default function GalleryPage() {
     completed: number;
     failed: number;
   }[]>([]);
-  const [activeTab, setActiveTab] = useState('images');
-  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Listen for events to view specific image JSON logs
-  useEffect(() => {
-    const handleViewImageJson = (event: CustomEvent<{ imageId: string }>) => {
-      setActiveTab('logs');
-      setSelectedImageId(event.detail.imageId);
-    };
-
-    window.addEventListener('viewImageJson', handleViewImageJson as EventListener);
-    
-    return () => {
-      window.removeEventListener('viewImageJson', handleViewImageJson as EventListener);
-    };
-  }, []);
-
+  // Check for active generations
   useEffect(() => {
     // Initial check for any active generations
     async function checkActiveGenerations() {
@@ -156,7 +139,7 @@ export default function GalleryPage() {
       supabase.removeChannel(channel);
     };
   }, []);
-  
+
   // Calculate combined progress across all active batches
   const calculateProgress = () => {
     if (activeGenerations.length === 0) return 0;
@@ -205,44 +188,26 @@ export default function GalleryPage() {
           </div>
         </div>
       )}
+
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold">My Creatives</h2>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={handleRefresh}
+          className="h-8 text-xs"
+        >
+          Refresh
+        </Button>
+      </div>
       
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <div className="flex justify-between items-center">
-          <TabsList className="h-9">
-            <TabsTrigger value="images" className="flex items-center gap-1 px-2.5 text-xs md:text-sm">
-              <ImageIcon className="h-3.5 w-3.5 md:h-4 md:w-4" />
-              <span>Creatives</span>
-            </TabsTrigger>
-            <TabsTrigger value="logs" className="flex items-center gap-1 px-2.5 text-xs md:text-sm">
-              <Code className="h-3.5 w-3.5 md:h-4 md:w-4" />
-              <span>JSON Logs</span>
-            </TabsTrigger>
-          </TabsList>
-          
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleRefresh}
-            className="h-8 text-xs"
-          >
-            Refresh
-          </Button>
-        </div>
-        
-        <TabsContent value="images" className="mt-2 md:mt-4">
-          {/* Mobile view with 2 columns, desktop with 4 */}
-          <div className="sm:hidden">
-            <ImageGallery refreshTrigger={refreshTrigger} columns={2} />
-          </div>
-          <div className="hidden sm:block">
-            <ImageGallery refreshTrigger={refreshTrigger} />
-          </div>
-        </TabsContent>
-        
-        <TabsContent value="logs">
-          <RawJsonView refreshTrigger={refreshTrigger} selectedImageId={selectedImageId} />
-        </TabsContent>
-      </Tabs>
+      {/* Mobile view with 2 columns, desktop with 4 */}
+      <div className="sm:hidden">
+        <ImageGallery refreshTrigger={refreshTrigger} columns={2} />
+      </div>
+      <div className="hidden sm:block">
+        <ImageGallery refreshTrigger={refreshTrigger} />
+      </div>
     </div>
   );
 }

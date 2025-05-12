@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { NavLink, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { getUserCredits } from '@/services/imageService';
@@ -15,6 +15,7 @@ import {
   Sparkles,
   ChevronRight,
   X, 
+  FileJson
 } from 'lucide-react';
 import { GalleryVerticalEnd as LuGalleryVerticalEnd } from "lucide-react";
 import { TbSmartHome, TbPhotoSquareRounded } from 'react-icons/tb';
@@ -198,6 +199,7 @@ export default function DashboardLayout() {
     others: [
       { id: 'library', label: 'Assets', icon: <LuLibrary className="h-5 w-5" />, badge: libraryCount > 0 ? libraryCount : undefined },
       { id: 'products', label: 'My Products', icon: <SiShopify className="h-5 w-5" /> },
+      { id: 'logs', label: 'Logs', icon: <FileJson className="h-5 w-5" /> },
       { id: 'settings', label: 'Settings', icon: <IoSettingsOutline className="h-5 w-5" /> }
     ]
   };
@@ -217,6 +219,8 @@ export default function DashboardLayout() {
         return 'Generate Now';
       case 'products':
         return 'My Products';
+      case 'logs':
+        return 'API Logs';
       case 'settings':
         return 'Settings';
       default:

@@ -20,6 +20,7 @@ import ProductsPage from '@/pages/ProductsPage';
 import NewAssetPage from '@/pages/NewAssetPage';
 import PricingPage from '@/pages/PricingPage';
 import CheckoutSuccessPage from '@/pages/CheckoutSuccessPage';
+import LogsPage from '@/pages/LogsPage';
 
 // Create auth context to avoid re-checking auth on every page
 export const AuthContext = createContext<{
@@ -195,8 +196,9 @@ function App() {
             <Route path="/gallery" element={<GalleryPage />} />
             <Route path="/library" element={<LibraryPage />} />
             <Route path="/photoshoot" element={<PhotoshootPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
             <Route path="/products" element={<ProductsPage />} />
+            <Route path="/logs" element={<LogsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
             
             {/* Redirect /generate to /photoshoot */}
             <Route path="/generate" element={<Navigate to="/photoshoot" replace />} />
