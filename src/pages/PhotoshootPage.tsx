@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { 
@@ -43,6 +43,8 @@ import {
 } from '@/services/photoshootService';
 import { ProductImagesModal } from '@/components/ProductImagesModal';
 import { ShopifyProduct } from '@/services/shopifyService';
+import { useGlobalStore } from '@/lib/store';
+import throttle from 'lodash.throttle';
 
 export default function PhotoshootPage() {
   const [photoshoots, setPhotoshoots] = useState<Photoshoot[]>([]);
@@ -58,6 +60,7 @@ export default function PhotoshootPage() {
   
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { incrementGalleryRefreshTrigger } = useGlobalStore();
 
   // Check if the view is mobile
   useEffect(() => {
@@ -73,77 +76,70 @@ export default function PhotoshootPage() {
     };
   }, []);
   
+  // Throttled loadPhotoshoots function to prevent rapid successive calls
+  const throttledLoadPhotoshoots = useCallback(
+    throttle(async () => {
+      try {
+        setLoading(true);
+        const { photoshoots: data } = await fetchPhotoshoots(50);
+        setPhotoshoots(data);
+      } catch (error) {
+        console.error('Error loading photoshoots:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load images',
+          variant: 'destructive'
+        });
+      } finally {
+        setLoading(false);
+      }
+    }, 1000),
+    [] // Empty dependency array ensures this is only created once
+  );
+  
+  // Sync when photoshoots update
   useEffect(() => {
-    // Initial load of photoshoots
-    loadPhotoshoots();
-    
-    // Set up a realtime subscription to photoshoots table
-    const channel = supabase
-      .channel('photoshoot-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'photoshoots',
-          // Only listen to changes for the current user's photoshoots
-          filter: `user_id=eq.${supabase.auth.getSession().then(({ data }) => data.session?.user.id)}`
-        },
-        (payload) => {
-          console.log('Photoshoot change detected:', payload);
-          
-          // Handle different types of changes
-          if (payload.eventType === 'INSERT') {
-            // Add new photoshoot to the list
-            const newPhotoshoot = payload.new as Photoshoot;
-            setPhotoshoots(prev => [newPhotoshoot, ...prev]);
-          } 
-          else if (payload.eventType === 'UPDATE') {
-            // Update existing photoshoot in the list
-            const updatedPhotoshoot = payload.new as Photoshoot;
-            setPhotoshoots(prev => prev.map(p => 
-              p.id === updatedPhotoshoot.id ? updatedPhotoshoot : p
-            ));
-          } 
-          else if (payload.eventType === 'DELETE') {
-            // Remove deleted photoshoot from the list
-            const deletedId = payload.old?.id;
-            if (deletedId) {
-              setPhotoshoots(prev => prev.filter(p => p.id !== deletedId));
-            }
+    // Only setup subscription if needed
+    if (photoshoots.length > 0 || loading === false) {
+      // Set up a realtime subscription to photoshoots table
+      const channel = supabase
+        .channel('photoshoot-realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
+            schema: 'public',
+            table: 'photoshoots',
+            // Only listen to changes for the current user's photoshoots
+            filter: `user_id=eq.${supabase.auth.getSession().then(({ data }) => data.session?.user.id)}`
+          },
+          (payload) => {
+            console.log('Photoshoot change detected:', payload.eventType);
+            
+            // Use throttled reload instead of trying to update state directly
+            // This prevents multiple rapid reloads when multiple events come in
+            throttledLoadPhotoshoots();
           }
-        }
-      )
-      .subscribe();
+        )
+        .subscribe();
     
-    // Clean up subscription on unmount
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  const loadPhotoshoots = async () => {
-    try {
-      setLoading(true);
-      const { photoshoots: data } = await fetchPhotoshoots(50);
-      setPhotoshoots(data);
-    } catch (error) {
-      console.error('Error loading photoshoots:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load images',
-        variant: 'destructive'
-      });
-    } finally {
-      setLoading(false);
+      // Clean up subscription on unmount
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
-  };
+  }, [photoshoots.length, loading]);
+
+  // Initial load of photoshoots
+  useEffect(() => {
+    throttledLoadPhotoshoots();
+  }, []);
 
   // Simple refresh function that reloads data
   const handleRefresh = async () => {
     try {
       setIsRefreshing(true);
-      await loadPhotoshoots();
+      await throttledLoadPhotoshoots();
       toast({
         title: "Refreshed",
         description: "Photoshoot list has been refreshed"
@@ -181,6 +177,10 @@ export default function PhotoshootPage() {
         // Just remove the single photoshoot
         setPhotoshoots(photoshoots.filter(p => p.id !== photoshootToDelete.id));
       }
+      
+      // Update global asset counts
+      incrementGalleryRefreshTrigger();
+      window.dispatchEvent(new CustomEvent('galleryUpdated'));
       
       toast({
         title: 'Image deleted',

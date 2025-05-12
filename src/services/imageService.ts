@@ -20,6 +20,17 @@ export type ReferenceImage = {
   url: string;
 };
 
+// Cache for generated images
+interface ImageCache {
+  images: GeneratedImage[];
+  totalCount: number;
+  hasMore: boolean;
+  timestamp: number;
+}
+
+const imageCache: Record<string, ImageCache> = {};
+const CACHE_DURATION = 60 * 1000; // 1 minute cache
+
 // Updated with smaller default limit to prevent timeouts
 export async function fetchGeneratedImages(limit: number = 5, page: number = 1): Promise<{
   images: GeneratedImage[],
@@ -29,6 +40,18 @@ export async function fetchGeneratedImages(limit: number = 5, page: number = 1):
   try {
     // Calculate offset based on page and limit
     const offset = (page - 1) * limit;
+    
+    // Check cache for first page
+    const cacheKey = `page_${page}_limit_${limit}`;
+    const cachedData = imageCache[cacheKey];
+    
+    if (cachedData && Date.now() - cachedData.timestamp < CACHE_DURATION) {
+      return {
+        images: cachedData.images,
+        totalCount: cachedData.totalCount,
+        hasMore: cachedData.hasMore
+      };
+    }
     
     // Get total count of images
     const { count, error: countError } = await supabase
@@ -66,6 +89,14 @@ export async function fetchGeneratedImages(limit: number = 5, page: number = 1):
     const totalCount = count || 0;
     const hasMore = offset + limit < totalCount;
     
+    // Cache the result
+    imageCache[cacheKey] = {
+      images: generatedImages,
+      totalCount,
+      hasMore,
+      timestamp: Date.now()
+    };
+    
     return {
       images: generatedImages,
       totalCount,
@@ -75,6 +106,13 @@ export async function fetchGeneratedImages(limit: number = 5, page: number = 1):
     console.error('Error fetching images:', error);
     throw error;
   }
+}
+
+// Clear image cache (call when images are added/removed)
+export function clearImageCache() {
+  Object.keys(imageCache).forEach(key => {
+    delete imageCache[key];
+  });
 }
 
 // Delete a generated image and its storage file
@@ -155,6 +193,12 @@ export async function deleteGeneratedImage(imageId: string): Promise<void> {
     // Log but don't fail the operation
     console.error('Error cleaning up asset records:', assetError);
   }
+  
+  // Clear the cache after deleting an image
+  clearImageCache();
+  
+  // Notify listeners that an image was deleted
+  window.dispatchEvent(new CustomEvent('galleryUpdated'));
 }
 
 // Upload a reference image file using the new Assets service
@@ -248,7 +292,7 @@ export async function deductUserCredit(count: number = 1): Promise<void> {
     log(`Deducting ${count} credits for user ${user.id}`);
     
     // Update the user's credits in the profile using the new function
-    const { error } = await supabase.rpc('deduct_multiple_credits', {
+    const { error } = await supabase.rpc("deduct_multiple_credits", {
       user_id_param: user.id,
       amount: count
     });
@@ -258,8 +302,94 @@ export async function deductUserCredit(count: number = 1): Promise<void> {
     }
     
     success(`Deducted ${count} credits successfully`);
+    
+    // Notify listeners that credits have changed
+    window.dispatchEvent(new CustomEvent('creditsChanged'));
   } catch (error) {
     console.error('Error deducting user credit:', error);
+    throw error;
+  }
+}
+
+// Get user's current credits
+export async function getUserCredits(): Promise<{ credits: number, creditsUsed: number }> {
+  try {
+    // Get the current user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+    
+    // Get user profile with credits
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('credits, credits_used')
+      .eq('user_id', user.id)
+      .single();
+    
+    if (error) {
+      // If the profile doesn't exist, create it
+      if (error.code === 'PGRST116') {
+        const { data: newProfile, error: insertError } = await supabase
+          .from('user_profiles')
+          .insert({
+            user_id: user.id,
+            credits: 10,
+            credits_used: 0
+          })
+          .select('credits, credits_used')
+          .single();
+          
+        if (insertError) {
+          console.error('Error creating user profile:', insertError);
+          return { credits: 10, creditsUsed: 0 };
+        }
+        
+        return { 
+          credits: newProfile?.credits || 10, 
+          creditsUsed: newProfile?.credits_used || 0 
+        };
+      }
+      
+      console.error('Error fetching user credits:', error);
+      return { credits: 0, creditsUsed: 0 };
+    }
+    
+    return { 
+      credits: data?.credits || 0, 
+      creditsUsed: data?.credits_used || 0 
+    };
+  } catch (error) {
+    console.error('Error getting user credits:', error);
+    return { credits: 0, creditsUsed: 0 };
+  }
+}
+
+// Function to ensure storage bucket exists
+export async function ensureStorageBucket(bucketName: string = 'images'): Promise<void> {
+  try {
+    // Check if the bucket exists
+    const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+    
+    if (listError) {
+      throw new Error(`Error checking storage buckets: ${listError.message}`);
+    }
+    
+    const bucketExists = buckets?.some(bucket => bucket.name === bucketName);
+    
+    if (!bucketExists) {
+      // Create the bucket if it doesn't exist
+      const { error } = await supabase.storage.createBucket(bucketName, {
+        public: true
+      });
+      
+      if (error) {
+        throw new Error(`Error creating storage bucket: ${error.message}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error ensuring storage bucket exists:', error);
     throw error;
   }
 }
@@ -490,6 +620,12 @@ export async function generateImage(
           }
         };
       }
+      
+      // Clear image cache after generating new images
+      clearImageCache();
+      
+      // Notify listeners that new images were generated
+      window.dispatchEvent(new CustomEvent('galleryUpdated'));
       
       // Update all task records to 'completed' status
       for (let i = 0; i < variants && i < data.urls.length; i++) {
@@ -813,88 +949,11 @@ export async function saveGeneratedImage(
     // Continue without failing the save operation
   }
   
+  // Clear image cache when saving new images
+  clearImageCache();
+  
+  // Notify listeners that a new image was generated
+  window.dispatchEvent(new CustomEvent('galleryUpdated'));
+  
   return imageData.id;
-}
-
-// Get user's current credits
-export async function getUserCredits(): Promise<{ credits: number, creditsUsed: number }> {
-  try {
-    // Get the current user
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
-    
-    // Get user profile with credits
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .select('credits, credits_used')
-      .eq('user_id', user.id)
-      .single();
-    
-    if (error) {
-      // If the profile doesn't exist, create it
-      if (error.code === 'PGRST116') {
-        const { data: newProfile, error: insertError } = await supabase
-          .from('user_profiles')
-          .insert({
-            user_id: user.id,
-            credits: 10,
-            credits_used: 0
-          })
-          .select('credits, credits_used')
-          .single();
-          
-        if (insertError) {
-          console.error('Error creating user profile:', insertError);
-          return { credits: 10, creditsUsed: 0 };
-        }
-        
-        return { 
-          credits: newProfile?.credits || 10, 
-          creditsUsed: newProfile?.credits_used || 0 
-        };
-      }
-      
-      console.error('Error fetching user credits:', error);
-      return { credits: 0, creditsUsed: 0 };
-    }
-    
-    return { 
-      credits: data?.credits || 0, 
-      creditsUsed: data?.credits_used || 0 
-    };
-  } catch (error) {
-    console.error('Error getting user credits:', error);
-    return { credits: 0, creditsUsed: 0 };
-  }
-}
-
-// Function to ensure storage bucket exists
-export async function ensureStorageBucket(bucketName: string = 'images'): Promise<void> {
-  try {
-    // Check if the bucket exists
-    const { data: buckets, error: listError } = await supabase.storage.listBuckets();
-    
-    if (listError) {
-      throw new Error(`Error checking storage buckets: ${listError.message}`);
-    }
-    
-    const bucketExists = buckets?.some(bucket => bucket.name === bucketName);
-    
-    if (!bucketExists) {
-      // Create the bucket if it doesn't exist
-      const { error } = await supabase.storage.createBucket(bucketName, {
-        public: true
-      });
-      
-      if (error) {
-        throw new Error(`Error creating storage bucket: ${error.message}`);
-      }
-    }
-  } catch (error) {
-    console.error('Error ensuring storage bucket exists:', error);
-    throw error;
-  }
 }

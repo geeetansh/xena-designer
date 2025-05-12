@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FileUpload } from './FileUpload';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,6 +42,8 @@ import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/lib/supabase';
 import { ImageSelectionModal } from './ImageSelectionModal';
 import { useNavigate } from 'react-router-dom';
+import { useGlobalStore } from '@/lib/store';
+import debounce from 'lodash.debounce';
 
 interface GenerationFormProps {
   onImageGenerated: () => void;
@@ -62,7 +64,6 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
   // Form state
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [credits, setCredits] = useState<number | null>(null);
   const [noCreditsWarning, setNoCreditsWarning] = useState(false);
   const [variantCount, setVariantCount] = useState('1');
   const [selectedLayout, setSelectedLayout] = useState('auto');
@@ -71,21 +72,60 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
   
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  // Get credit info from the global store
+  const { creditInfo, fetchCreditInfo } = useGlobalStore();
+  const { credits } = creditInfo;
 
-  // Fetch user's credits on component mount
+  // Load user credits on component mount
   useEffect(() => {
-    async function fetchUserCredits() {
-      try {
-        const { hasCredits, credits } = await checkUserCredits();
-        setCredits(credits);
-        setNoCreditsWarning(!hasCredits);
-      } catch (error) {
-        console.error('Error checking user credits:', error);
-      }
-    }
-    
-    fetchUserCredits();
+    fetchCreditInfo();
   }, []);
+
+  // Watch for credit changes via the global store
+  useEffect(() => {
+    setNoCreditsWarning(credits <= 0);
+  }, [credits]);
+
+  // Debounced function to handle generation status updates
+  const updateGenerationProgress = useCallback(
+    debounce((batchId: string) => {
+      const checkProgress = async () => {
+        try {
+          // Use RPC function to get batch status
+          const { data, error } = await supabase.rpc('get_batch_generation_status', {
+            batch_id_param: batchId
+          });
+          
+          if (error) throw error;
+          
+          if (data) {
+            const { total, completed, failed, pending, processing } = data;
+            const progress = ((completed + failed) / total) * 100;
+            
+            setGenerationProgress(progress);
+            
+            // If not complete, check again
+            if (completed + failed < total) {
+              setTimeout(() => updateGenerationProgress(batchId), 2000);
+            } else {
+              // Set to 100% when complete
+              setGenerationProgress(100);
+              setTimeout(() => {
+                setIsGenerating(false);
+                setGenerationProgress(0);
+              }, 1000);
+            }
+          }
+        } catch (error) {
+          console.error('Error checking generation status:', error);
+        }
+      };
+      
+      checkProgress();
+    }, 500),
+    []
+  );
 
   // Handle image generation
   const handleGeneration = async () => {
@@ -145,6 +185,9 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
       // Log the results
       log(`Generated ${result.urls.length} images with variation group ID: ${result.variationGroupId}`);
       
+      // Start tracking progress
+      updateGenerationProgress(result.variationGroupId);
+      
       // Save all images to the database
       for (let i = 0; i < result.urls.length; i++) {
         try {
@@ -162,10 +205,7 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
       }
       
       // Update credits display (already deducted by API)
-      const { credits: updatedCredits } = await getUserCredits();
-      log(`Updated credits after generation: ${updatedCredits}`);
-      setCredits(updatedCredits);
-      setNoCreditsWarning(updatedCredits <= 0);
+      await fetchCreditInfo();
       
       // Reset form
       setProductImage([]);
@@ -209,6 +249,7 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
       });
       
       setIsGenerating(false);
+      setGenerationProgress(0);
     }
   };
 
@@ -254,7 +295,6 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
         return;
       }
       
-      setCredits(currentCredits);
       log(`User has ${currentCredits} credits, proceeding with generation`);
     } catch (err) {
       logError('Error checking user credits:', err);

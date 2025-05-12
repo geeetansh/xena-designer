@@ -28,6 +28,10 @@ import { Button } from '@/components/ui/button';
 import { Download, FileJson, Eye, Image, Loader2, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useGlobalStore } from '@/lib/store';
+import { LazyImage } from './LazyImage';
+import { FixedSizeGrid } from 'react-window';
+import throttle from 'lodash.throttle';
 
 interface ImageGalleryProps {
   refreshTrigger: number;
@@ -47,7 +51,57 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const { toast } = useToast();
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<FixedSizeGrid>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const dataFetchedRef = useRef(false);
+
+  // Get asset counts from the global store
+  const { incrementGalleryRefreshTrigger } = useGlobalStore();
+
+  // Cache page size (images per request) for consistency
+  const PAGE_SIZE = 20;
+
+  // Measure available container width for grid
+  const [containerWidth, setContainerWidth] = useState(1200);
+
+  useEffect(() => {
+    // Function to measure container width
+    const updateContainerWidth = throttle(() => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.offsetWidth);
+      }
+    }, 200);
+
+    // Initial measurement
+    updateContainerWidth();
+
+    // Update on resize
+    window.addEventListener('resize', updateContainerWidth);
+    return () => {
+      window.removeEventListener('resize', updateContainerWidth);
+    };
+  }, []);
+
+  // Calculate cell size based on container width and columns
+  const calculateCellSize = () => {
+    const columnCount = columns === 2 ? 2 : 
+                         (containerWidth < 640 ? 1 : 
+                          containerWidth < 768 ? 2 :
+                          containerWidth < 1024 ? 3 : 4);
+    
+    // Account for gap (16px between items)
+    const gap = 16;
+    const availableWidth = containerWidth - (gap * (columnCount - 1));
+    const cellWidth = Math.floor(availableWidth / columnCount);
+    
+    return {
+      width: cellWidth,
+      height: cellWidth, // Square cells
+      columnCount
+    };
+  };
+
+  const cellSize = calculateCellSize();
 
   // Modified to use pagination with a smaller batch size (20 per page)
   const loadImages = async (page = 1, append = false) => {
@@ -62,7 +116,7 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
       }
       
       // Limit to 20 items per page
-      const { images: fetchedImages, totalCount: total, hasMore: more } = await fetchGeneratedImages(20, page);
+      const { images: fetchedImages, totalCount: total, hasMore: more } = await fetchGeneratedImages(PAGE_SIZE, page);
       
       if (append) {
         setImages(prevImages => [...prevImages, ...fetchedImages]);
@@ -95,6 +149,28 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
       loadImages(1, false);
     }
   }, [refreshTrigger]);
+
+  // Handle loading more images when scrolling
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
+          handleLoadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => {
+      if (loadMoreRef.current) {
+        observer.unobserve(loadMoreRef.current);
+      }
+    };
+  }, [hasMore, isLoadingMore, loadMoreRef.current]);
 
   // Handle loading more images
   const handleLoadMore = () => {
@@ -160,6 +236,10 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
       setImages(images.filter(img => img.id !== imageToDelete.id));
       setTotalCount(prev => prev - 1);
       
+      // Update global asset counts
+      incrementGalleryRefreshTrigger();
+      window.dispatchEvent(new CustomEvent('galleryUpdated'));
+      
       toast({
         title: "Image deleted",
         description: "The image has been permanently deleted"
@@ -177,59 +257,57 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
     }
   };
 
-  const confirmDelete = (image: GeneratedImage) => {
+  const confirmDelete = (image: GeneratedImage, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent image selection when clicking delete
     setImageToDelete(image);
     setIsDeleteDialogOpen(true);
   };
 
-  // Memoize the image rendering to prevent unnecessary re-renders
-  const imageGallery = useMemo(() => (
-    <div className={`grid grid-cols-${columns === 2 ? '2' : '1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'} gap-2 md:gap-4`}>
-      {images.map((image) => {
-        return (
-          <div 
-            key={image.id} 
-            className="relative group overflow-hidden rounded-lg shadow-sm transition-all duration-200 hover:shadow-md"
-          >
-            <div className="aspect-square w-full h-full bg-background">
-              <img
-                src={image.url} 
-                alt={image.prompt}
-                className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-              />
-            </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end">
-              <div className="p-2 md:p-4 space-y-1">
-                <h3 className="text-white font-medium text-xs md:text-sm line-clamp-1">{image.prompt}</h3>
-                <div className="flex justify-between mt-1 md:mt-2">
-                  <Button 
-                    size="sm" 
-                    variant="secondary"
-                    className="rounded-full shadow-lg text-xs h-7 px-2 md:h-8 md:px-3"
-                    onClick={() => setSelectedImage(image)}
-                  >
-                    <Eye className="h-3 w-3 md:h-4 md:w-4 mr-1" />
-                    View
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="destructive"
-                    className="rounded-full shadow-lg h-7 w-7 p-0 md:h-8 md:w-8"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      confirmDelete(image);
-                    }}
-                  >
-                    <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
-                  </Button>
-                </div>
+  // Cell renderer for the virtualized grid
+  const Cell = ({ columnIndex, rowIndex, style }: { columnIndex: number; rowIndex: number; style: React.CSSProperties }) => {
+    const index = rowIndex * cellSize.columnCount + columnIndex;
+    if (index >= images.length) return null;
+    
+    const image = images[index];
+    
+    return (
+      <div style={style} className="p-2">
+        <div className="relative group overflow-hidden rounded-lg shadow-sm transition-all duration-200 hover:shadow-md h-full">
+          <div className="aspect-square w-full h-full bg-background">
+            <LazyImage
+              src={image.url} 
+              alt={image.prompt}
+              className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+            />
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end">
+            <div className="p-2 md:p-4 space-y-1">
+              <h3 className="text-white font-medium text-xs md:text-sm line-clamp-1">{image.prompt}</h3>
+              <div className="flex justify-between mt-1 md:mt-2">
+                <Button 
+                  size="sm" 
+                  variant="secondary"
+                  className="rounded-full shadow-lg text-xs h-7 px-2 md:h-8 md:px-3"
+                  onClick={() => setSelectedImage(image)}
+                >
+                  <Eye className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                  View
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="destructive"
+                  className="rounded-full shadow-lg h-7 w-7 p-0 md:h-8 md:w-8"
+                  onClick={(e) => confirmDelete(image, e)}
+                >
+                  <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
+                </Button>
               </div>
             </div>
           </div>
-        );
-      })}
-    </div>
-  ), [images, columns]);
+        </div>
+      </div>
+    );
+  };
 
   if (loading && images.length === 0) {
     return (
@@ -263,8 +341,22 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
         <h2 className="text-base md:text-lg font-medium">Your Images ({totalCount})</h2>
       </div>
       
-      {/* Use memoized gallery to prevent unnecessary re-renders */}
-      {imageGallery}
+      {/* Grid container with ref for measuring width */}
+      <div ref={containerRef} className="w-full">
+        {/* Virtualized grid for better performance */}
+        <FixedSizeGrid
+          ref={gridRef}
+          columnCount={cellSize.columnCount}
+          columnWidth={cellSize.width}
+          height={Math.min(800, Math.ceil(images.length / cellSize.columnCount) * cellSize.height)}
+          rowCount={Math.ceil(images.length / cellSize.columnCount)}
+          rowHeight={cellSize.height}
+          width={containerWidth}
+          overscanRowCount={2}
+        >
+          {Cell}
+        </FixedSizeGrid>
+      </div>
       
       {/* Load more button */}
       {hasMore && (
@@ -351,11 +443,10 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
                       {selectedImage.reference_images.map((refImage) => {
                         return (
                           <div key={refImage.id} className="aspect-square border rounded-md overflow-hidden">
-                            <img 
+                            <LazyImage
                               src={refImage.url} 
                               alt="Reference"
                               className="object-cover w-full h-full"
-                              loading="lazy"
                             />
                           </div>
                         );
@@ -378,7 +469,10 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
                 variant="destructive" 
                 size="sm"
                 className="h-8 text-xs md:text-sm"
-                onClick={() => confirmDelete(selectedImage)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  confirmDelete(selectedImage, e);
+                }}
               >
                 <Trash2 className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
                 Delete Image
