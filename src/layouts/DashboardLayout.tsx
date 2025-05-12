@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { useAppData } from '@/contexts/AppDataContext';
+import { getUserCredits } from '@/services/imageService';
 
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -28,20 +28,110 @@ interface DashboardLayoutProps {
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
+  const [imageCount, setImageCount] = useState(0);
+  const [libraryCount, setLibraryCount] = useState(0);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [userProfile, setUserProfile] = useState<{ full_name?: string; email?: string; company_logo?: string } | null>(null);
+  const [credits, setCredits] = useState(0);
+  const [creditsUsed, setCreditsUsed] = useState(0);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
-  
-  // Get data from context instead of fetching directly
-  const {
-    userProfile,
-    imageCount,
-    libraryCount,
-    credits,
-    creditsUsed,
-    isLoading
-  } = useAppData();
+
+  // Load user data just once on initial mount
+  useEffect(() => {
+    let isMounted = true;
+    
+    async function fetchUserData() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user && isMounted) {
+          // Get user profile
+          const { data: profile, error } = await supabase
+            .from('user_profiles')
+            .select('full_name, company_logo')
+            .eq('user_id', user.id)
+            .single();
+          
+          if (!error && profile && isMounted) {
+            setUserProfile({ 
+              full_name: profile.full_name,
+              email: user.email,
+              company_logo: profile.company_logo
+            });
+          } else if (isMounted) {
+            setUserProfile({ email: user.email });
+          }
+          
+          // Get user credits
+          const { credits, creditsUsed } = await getUserCredits();
+          if (isMounted) {
+            setCredits(credits);
+            setCreditsUsed(creditsUsed);
+          }
+        }
+        
+        // Only load counts after a delay
+        setTimeout(() => {
+          if (isMounted) {
+            // Get count of images
+            supabase
+              .from('images')
+              .select('id', { count: 'exact', head: true })
+              .then(({ count }) => {
+                if (isMounted) setImageCount(count || 0);
+              });
+            
+            // Get library count from assets table (replacing library_images)
+            supabase
+              .from('assets')
+              .select('id', { count: 'exact', head: true })
+              .eq('source', 'library')
+              .then(({ count }) => {
+                if (isMounted) setLibraryCount(count || 0);
+              });
+          }
+        }, 1000);
+        
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      } finally {
+        if (isMounted) {
+          setIsInitialLoad(false);
+        }
+      }
+    }
+    
+    fetchUserData();
+    
+    // Set up a subscription for credit changes
+    const channel = supabase
+      .channel('credit-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'user_profiles',
+          filter: `user_id=eq.${supabase.auth.getSession().then(({ data }) => data.session?.user.id)}`
+        },
+        async (payload) => {
+          // Update credits when they change
+          if (isMounted) {
+            setCredits(payload.new.credits || 0);
+            setCreditsUsed(payload.new.credits_used || 0);
+          }
+        }
+      )
+      .subscribe();
+      
+    // Cleanup subscription and prevent state updates after unmount
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   // Listen for navigation events
   useEffect(() => {
@@ -143,13 +233,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     <div className={`flex flex-col h-full ${mobile ? '' : 'w-64 border-r'}`}>
       {/* Logo */}
       <div className="py-6 px-4 mb-2">
-        <NavLink to="/home">
-          <img 
-            src="https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6810f7c3918810c7e1a3fb13_Xena.png"
-            alt="Xena Logo"
-            className="h-10 object-contain mx-auto"
-          />
-        </NavLink>
+        <img 
+          src="https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6810f7c3918810c7e1a3fb13_Xena.png"
+          alt="Xena Logo"
+          className="h-10 object-contain mx-auto"
+        />
       </div>
       
       {/* Main Navigation */}
@@ -301,13 +389,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Mobile Header */}
         <header className="md:hidden w-full px-4 py-3 border-b flex items-center justify-between bg-background sticky top-0 z-10">
           <div className="flex items-center">
-            <NavLink to="/home">
-              <img 
-                src="https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6810f7c3918810c7e1a3fb13_Xena.png"
-                alt="Xena Logo"
-                className="h-9 object-contain"
-              />
-            </NavLink>
+            <img 
+              src="https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6810f7c3918810c7e1a3fb13_Xena.png"
+              alt="Xena Logo"
+              className="h-9 object-contain"
+            />
           </div>
           
           {/* User profile button for mobile */}
