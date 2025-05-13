@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { ThemeProvider } from '@/components/ui/theme-provider';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
+import { identifyUser, resetUser, trackEvent } from '@/lib/posthog';
 
 // Pages
 import SignUpPage from '@/pages/SignUpPage';
@@ -72,6 +73,16 @@ function App() {
               });
             }
           }
+          
+          // If we have a user, identify them in PostHog
+          if (data.session.user) {
+            identifyUser(data.session.user.id, {
+              email: data.session.user.email,
+            });
+            
+            // Track login event
+            trackEvent('session_restored');
+          }
         }
       } catch (error) {
         console.error('Error checking session:', error);
@@ -94,6 +105,9 @@ function App() {
       async (event, newSession) => {
         if (event === 'SIGNED_OUT') {
           setSession(false);
+          // Reset PostHog user on sign out
+          resetUser();
+          trackEvent('user_signed_out');
         } else if (
           event === 'SIGNED_IN' || 
           event === 'TOKEN_REFRESHED' || 
@@ -103,6 +117,18 @@ function App() {
           event === 'PASSWORD_RECOVERY'
         ) {
           setSession(!!newSession);
+          
+          // Identify user in PostHog
+          if (newSession?.user) {
+            identifyUser(newSession.user.id, {
+              email: newSession.user.email,
+            });
+            
+            // Track sign-in event
+            if (event === 'SIGNED_IN') {
+              trackEvent('user_signed_in');
+            }
+          }
         }
       }
     );
@@ -129,6 +155,16 @@ function App() {
       clearInterval(refreshInterval);
     };
   }, [initialCheckDone, location.pathname]);
+
+  // Track page views
+  useEffect(() => {
+    // Track page view with PostHog
+    trackEvent('$pageview', {
+      path: location.pathname,
+      url: window.location.href,
+      referrer: document.referrer,
+    });
+  }, [location.pathname]);
 
   // Check if the route is a protected route
   const isProtectedRoute = (path: string) => {

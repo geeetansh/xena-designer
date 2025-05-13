@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, EyeOff, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { trackEvent } from '@/lib/posthog';
 
 import {
   Card,
@@ -93,6 +94,11 @@ export default function SignUpPage() {
     setIsLoading(true);
     
     try {
+      // Track signup attempt
+      trackEvent('signup_started', {
+        email_domain: values.email.split('@')[1]
+      });
+      
       // Create user with OTP verification
       const { error } = await supabase.auth.signUp({
         email: values.email,
@@ -111,6 +117,9 @@ export default function SignUpPage() {
       // Show success message and prompt for OTP verification
       toast.success('Account created successfully! Please verify your email with the code sent to your inbox.');
       
+      // Track signup success
+      trackEvent('signup_completed');
+      
       // Open OTP verification modal
       setIsOtpModalOpen(true);
       
@@ -121,6 +130,12 @@ export default function SignUpPage() {
       } else {
         toast.error('An unexpected error occurred. Please try again.');
       }
+      
+      // Track signup error
+      trackEvent('signup_failed', {
+        reason: error.message
+      });
+      
       console.error('Sign up error:', error);
     } finally {
       setIsLoading(false);
@@ -129,6 +144,10 @@ export default function SignUpPage() {
   
   const handleVerificationSuccess = () => {
     toast.success('Email verified successfully!');
+    
+    // Track verification success
+    trackEvent('email_verification_success');
+    
     // Sign in the user automatically
     supabase.auth.signInWithPassword({
       email,
@@ -137,8 +156,16 @@ export default function SignUpPage() {
       if (error) {
         toast.error('Verification successful, but sign-in failed. Please sign in manually.');
         navigate('/login');
+        
+        // Track auto-signin failure
+        trackEvent('auto_signin_failed', {
+          reason: error.message
+        });
       } else {
         navigate('/dashboard');
+        
+        // Track auto-signin success
+        trackEvent('auto_signin_success');
       }
     });
   };
@@ -363,6 +390,7 @@ export default function SignUpPage() {
               <Link 
                 to="/login" 
                 className="text-primary hover:underline font-medium"
+                onClick={() => trackEvent('login_link_clicked')}
               >
                 Log in
               </Link>
@@ -377,7 +405,10 @@ export default function SignUpPage() {
         onOpenChange={setIsOtpModalOpen}
         email={email}
         onSuccess={handleVerificationSuccess}
-        onError={(error) => toast.error(error)}
+        onError={(error) => {
+          toast.error(error);
+          trackEvent('email_verification_failed', { error });
+        }}
       />
 
       {/* Footer */}

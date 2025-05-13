@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { trackEvent } from '@/lib/posthog';
 
 import {
   Card,
@@ -62,6 +63,9 @@ export default function LoginPage() {
     setIsLoading(true);
     
     try {
+      // Track login attempt
+      trackEvent('login_attempt', { email_domain: values.email.split('@')[1] });
+      
       // First attempt to sign in with password
       const { data, error } = await supabase.auth.signInWithPassword({
         email: values.email,
@@ -73,10 +77,21 @@ export default function LoginPage() {
         if (error.message.includes('Email not confirmed')) {
           setUnverifiedEmail(values.email);
           setIsOtpModalOpen(true);
+          
+          // Track verification needed
+          trackEvent('login_verification_needed');
+          
           throw new Error('Verify your account by entering the OTP sent to your email.');
         }
+        
+        // Track login failure
+        trackEvent('login_failed', { reason: error.message });
+        
         throw error;
       }
+      
+      // Track login success
+      trackEvent('login_success');
       
       toast.success('Logged in successfully!');
       navigate('/dashboard');
@@ -90,6 +105,10 @@ export default function LoginPage() {
 
   const handleVerificationSuccess = () => {
     toast.success('Email verified successfully!');
+    
+    // Track verification success
+    trackEvent('email_verification_success');
+    
     // Allow the user to login now
     navigate('/login');
   };
@@ -157,13 +176,17 @@ export default function LoginPage() {
                               return;
                             }
                             
+                            trackEvent('password_reset_requested');
+                            
                             supabase.auth.resetPasswordForEmail(email, {
                               redirectTo: `${window.location.origin}/reset-password`,
                             }).then(({ error }) => {
                               if (error) {
                                 toast.error(error.message);
+                                trackEvent('password_reset_failed', { reason: error.message });
                               } else {
                                 toast.success("Password reset email sent. Check your inbox.");
+                                trackEvent('password_reset_email_sent');
                               }
                             });
                           }}
@@ -219,6 +242,7 @@ export default function LoginPage() {
               <Link 
                 to="/sign-up" 
                 className="text-primary hover:underline font-medium"
+                onClick={() => trackEvent('signup_link_clicked')}
               >
                 Sign up
               </Link>
@@ -233,7 +257,10 @@ export default function LoginPage() {
         onOpenChange={setIsOtpModalOpen}
         email={unverifiedEmail}
         onSuccess={handleVerificationSuccess}
-        onError={(error) => toast.error(error)}
+        onError={(error) => {
+          toast.error(error);
+          trackEvent('email_verification_failed', { error });
+        }}
       />
 
       {/* Footer */}

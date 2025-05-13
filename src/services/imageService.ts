@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { mapLayoutToOpenAISize } from '@/lib/utils';
 import { log, error as logError, success, uploadLog, startOperation, endOperation, formatFileSize } from '@/lib/logger';
 import { uploadFromBuffer } from './AssetsService';
+import { trackEvent } from '@/lib/posthog';
 
 export type GeneratedImage = {
   id: string;
@@ -184,6 +185,9 @@ export async function deleteGeneratedImage(imageId: string): Promise<void> {
     // Log but don't fail the operation
     console.error('Error cleaning up asset records:', assetError);
   }
+  
+  // Track deletion event
+  trackEvent('image_deleted', { imageId });
 }
 
 // Upload a reference image file using the new Assets service
@@ -287,6 +291,12 @@ export async function deductUserCredit(count: number = 1): Promise<void> {
     }
     
     success(`Deducted ${count} credits successfully`);
+    
+    // Track credit usage
+    trackEvent('credits_used', { 
+      count, 
+      action: 'generate_image'
+    });
   } catch (error) {
     console.error('Error deducting user credit:', error);
     throw error;
@@ -383,7 +393,7 @@ export async function generateImage(
   referenceImageUrls: string[] = [],
   variants: number = 1,
   size: string = 'auto'
-): Promise<{ urls: string[], variationGroupId: string }> {
+): Promise<{ urls: string[], variationGroupId: string, rawJson?: any }> {
   startOperation(`Generating ${variants} images (${size}) with prompt: "${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}"`);
   const startTime = Date.now();
   
@@ -420,6 +430,14 @@ export async function generateImage(
     }
   }
   
+  // Track the image generation attempt
+  trackEvent('generate_image_started', {
+    prompt: prompt.substring(0, 100),
+    reference_count: allReferenceImageUrls.length,
+    variants,
+    size
+  });
+  
   // Get the current session for authorization
   const { data: { session } } = await supabase.auth.getSession();
   
@@ -437,6 +455,7 @@ export async function generateImage(
     
     // Generate a unique variation group ID that will be used to group related images
     const variationGroupId = uuidv4();
+    log(`Created variation group ID: ${variationGroupId} for ${variants} variants`);
     
     // Create generation_task records for each variant BEFORE calling the API
     // This ensures we have records in the database even if the edge function fails
@@ -553,6 +572,13 @@ export async function generateImage(
           }
         }
         
+        // Track error event
+        trackEvent('image_generation_error', {
+          error: errorDetails,
+          status: response.status,
+          prompt_length: prompt.length
+        });
+        
         throw new Error(`Supabase edge function error: ${errorDetails}`);
       }
       
@@ -594,10 +620,17 @@ export async function generateImage(
           }
         }
         
+        // Track the fallback event
+        trackEvent('image_generation_fallback', {
+          error: data.error,
+          prompt_length: prompt.length
+        });
+        
         // Still return the data, but include the error information
         return {
           urls: [data.urls[0]],
           variationGroupId,
+          rawJson: data
         };
       }
       
@@ -633,10 +666,18 @@ export async function generateImage(
         }
       }
       
+      // Track successful generation
+      trackEvent('image_generation_completed', {
+        image_count: data.urls.length,
+        prompt_length: prompt.length,
+        generation_time_ms: Date.now() - startTime
+      });
+      
       endOperation(`Image generation completed`, startTime);
       return {
         urls: data.urls,
-        variationGroupId
+        variationGroupId,
+        rawJson: data
       };
     } catch (error) {
       if (error.name === 'AbortError') {
@@ -671,6 +712,11 @@ export async function generateImage(
             logError(`Error updating photoshoot for failure: ${photoshootError}`);
           }
         }
+        
+        // Track timeout error
+        trackEvent('image_generation_timeout', {
+          prompt_length: prompt.length
+        });
         
         throw new Error('Request timed out. The Supabase Function took too long to respond (over 240 seconds). This may indicate high server load or complex image generation.');
       }
@@ -708,6 +754,12 @@ export async function generateImage(
           logError(`Error updating photoshoot for error: ${photoshootError}`);
         }
       }
+      
+      // Track error by type
+      trackEvent('image_generation_error', {
+        error_type: error.name || 'Unknown',
+        error_message: errorMsg.substring(0, 100)
+      });
       
       // Identify the source of the error
       if (errorMsg.includes('NetworkError') || errorMsg.includes('network')) {
@@ -859,6 +911,12 @@ export async function saveGeneratedImage(
     
     console.log(`Successfully inserted image record with ID: ${imageData.id}`);
     success(`Image saved to database with ID: ${imageData.id}`);
+    
+    // Track image saved event
+    trackEvent('image_saved', {
+      hasVariations: !!metadata?.variation_group_id,
+      variation_index: metadata?.variation_index || 0
+    });
     
     // Direct update to photoshoots table
     try {
