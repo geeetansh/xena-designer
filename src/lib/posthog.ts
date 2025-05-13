@@ -1,8 +1,14 @@
 import posthog from 'posthog-js'
 import { useMemo } from 'react'
 
-export const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY || ''
-export const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://us.posthog.com'
+// Get PostHog keys from environment variables, checking both formats
+export const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY || 
+                          import.meta.env.REACT_APP_PUBLIC_POSTHOG_KEY || 
+                          ''
+                          
+export const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST || 
+                           import.meta.env.REACT_APP_PUBLIC_POSTHOG_HOST || 
+                           'https://us.posthog.com'
 
 // Initialize PostHog
 export const initPostHog = () => {
