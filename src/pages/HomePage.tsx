@@ -240,6 +240,7 @@ export default function HomePage() {
                 className="h-8 md:h-10 text-xs md:text-sm"
                 onClick={() => navigate('/pricing')}
               >
+                <TbCoins className="h-4 w-4 mr-1.5" />
                 Get More Credits
               </Button>
               
@@ -248,7 +249,7 @@ export default function HomePage() {
                 className="h-8 md:h-10 text-xs md:text-sm"
                 onClick={() => navigate('/new-asset')}
               >
-                Create New Asset
+                Start Creating
               </Button>
             </div>
           </div>

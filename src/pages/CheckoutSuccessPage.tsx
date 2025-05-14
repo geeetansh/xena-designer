@@ -1,56 +1,72 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Loader2, Coins } from 'lucide-react';
-import { getUserSubscription, getSubscriptionDetails, getUserOrders } from '@/services/stripeService';
+import { CheckCircle, Loader2, Coins, ArrowRight } from 'lucide-react';
+import { getUserOrders } from '@/services/stripeService';
 import { getProductByPriceId } from '@/stripe-config';
+import { supabase } from '@/lib/supabase';
+import { trackEvent } from '@/lib/posthog';
 
 export default function CheckoutSuccessPage() {
   const [isLoading, setIsLoading] = useState(true);
-  const [subscription, setSubscription] = useState<any>(null);
   const [order, setOrder] = useState<any>(null);
   const [product, setProduct] = useState<any>(null);
+  const [currentCredits, setCurrentCredits] = useState<number | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
   
   useEffect(() => {
-    async function fetchPurchaseDetails() {
+    async function fetchCheckoutDetails() {
       try {
         setIsLoading(true);
         
-        // Attempt to get subscription first
-        const subscriptionDetails = await getSubscriptionDetails();
-        if (subscriptionDetails && subscriptionDetails.subscription_status === 'active') {
-          setSubscription(subscriptionDetails);
-          if (subscriptionDetails.price_id) {
-            const productDetails = getProductByPriceId(subscriptionDetails.price_id);
-            setProduct(productDetails);
-          }
-        } else {
-          // If no active subscription, check for recent one-time orders
-          const ordersData = await getUserOrders();
-          if (ordersData && ordersData.length > 0) {
-            // Get the most recent order (should be the one just completed)
-            const mostRecentOrder = ordersData[0];
-            setOrder(mostRecentOrder);
-            
-            // If the order has a product_id, try to get product details
-            if (mostRecentOrder.product_id) {
-              const productDetails = getProductByPriceId(mostRecentOrder.product_id);
-              if (productDetails) {
-                setProduct(productDetails);
-              }
+        // Get the most recent order
+        const orders = await getUserOrders();
+        
+        if (orders && orders.length > 0) {
+          // Get the most recent order
+          const mostRecentOrder = orders[0];
+          setOrder(mostRecentOrder);
+          
+          // If the order has a product_id, try to get product details
+          if (mostRecentOrder.product_id) {
+            const productDetails = getProductByPriceId(mostRecentOrder.product_id);
+            if (productDetails) {
+              setProduct(productDetails);
             }
+          }
+          
+          // Track successful purchase
+          trackEvent('purchase_completed', {
+            order_id: mostRecentOrder.order_id,
+            amount: mostRecentOrder.amount_total / 100,
+            credits: mostRecentOrder.credits_added || 0
+          });
+        }
+        
+        // Get user's current credits
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          const { data } = await supabase
+            .from('user_profiles')
+            .select('credits')
+            .eq('user_id', user.id)
+            .single();
+            
+          if (data) {
+            setCurrentCredits(data.credits);
           }
         }
       } catch (error) {
-        console.error('Error fetching purchase details:', error);
+        console.error('Error fetching checkout details:', error);
       } finally {
         setIsLoading(false);
       }
     }
     
-    fetchPurchaseDetails();
+    fetchCheckoutDetails();
   }, []);
   
   return (
@@ -74,7 +90,7 @@ export default function CheckoutSuccessPage() {
             </div>
             <CardTitle className="text-xl md:text-2xl">Payment Successful!</CardTitle>
             <CardDescription>
-              Thank you for your purchase. Your payment has been processed successfully.
+              Thank you for your purchase. Your credits have been added to your account.
             </CardDescription>
           </CardHeader>
           
@@ -87,26 +103,11 @@ export default function CheckoutSuccessPage() {
               <div className="space-y-4">
                 <div className="bg-muted p-3 md:p-4 rounded-lg">
                   <h3 className="text-sm md:font-medium mb-2">Purchase Details</h3>
-                  {subscription ? (
-                    <div className="space-y-2 text-sm">
-                      <p><span className="text-muted-foreground">Product:</span> {product?.name || 'Premium Subscription'}</p>
-                      <p><span className="text-muted-foreground">Price:</span> {product?.price || '$199.00/month'}</p>
-                      <p className="flex items-center">
-                        <span className="text-muted-foreground mr-2">Credits:</span>
-                        <Coins className="h-3 w-3 md:h-4 md:w-4 text-amber-500 mr-1" />
-                        <span>{product?.credits || '500'} per month</span>
-                      </p>
-                      <p>
-                        <span className="text-muted-foreground">Status:</span> {' '}
-                        <span className="capitalize">{subscription.subscription_status}</span>
-                      </p>
-                    </div>
-                  ) : order ? (
+                  {order ? (
                     <div className="space-y-2 text-sm">
                       <p>
                         <span className="text-muted-foreground">Product:</span> {' '}
-                        {/* Use product_name from the database if available, otherwise fall back to lookup */}
-                        {order.product_name || product?.name || 'Credits Purchase'}
+                        {product?.name || order.product_name || 'Credits Purchase'}
                       </p>
                       <p className="flex items-center">
                         <span className="text-muted-foreground mr-2">Credits Added:</span>
@@ -120,10 +121,12 @@ export default function CheckoutSuccessPage() {
                           currency: order.currency?.toUpperCase() || 'USD'
                         }).format(order.amount_total / 100)}
                       </p>
-                      <p>
-                        <span className="text-muted-foreground">Status:</span> {' '}
-                        <span className="capitalize">{order.payment_status}</span>
-                      </p>
+                      {currentCredits !== null && (
+                        <p className="font-medium mt-3 pt-2 border-t">
+                          <span className="text-muted-foreground">Current balance:</span> {' '}
+                          {currentCredits} credits
+                        </p>
+                      )}
                     </div>
                   ) : (
                     <p className="text-sm">Your purchase has been completed. Your credits have been added to your account.</p>
@@ -141,8 +144,12 @@ export default function CheckoutSuccessPage() {
           </CardContent>
           
           <CardFooter className="flex justify-center pt-2 md:pt-4">
-            <Button onClick={() => navigate('/home')} className="w-full md:w-auto">
-              Go to Dashboard
+            <Button 
+              onClick={() => navigate('/photoshoot')} 
+              className="w-full md:w-auto"
+            >
+              Start Creating
+              <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </CardFooter>
         </Card>

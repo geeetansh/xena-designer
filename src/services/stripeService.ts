@@ -126,3 +126,29 @@ export async function getSubscriptionDetails() {
     throw error;
   }
 }
+
+// Get user's current credit balance
+export async function getUserCredits() {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+    
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('credits')
+      .eq('user_id', user.id)
+      .single();
+    
+    if (error) {
+      throw error;
+    }
+    
+    return data?.credits || 0;
+  } catch (error) {
+    console.error('Error fetching user credits:', error);
+    return 0;
+  }
+}

@@ -1,40 +1,24 @@
 // Stripe product configuration
 export const products = [
   {
-    name: "500 credits every month",
-    description: "Get 500 credits every month for your AI image generation needs",
-    priceId: "price_1RMvZYF2bI4ojX8owZzL0B2T",
-    mode: "subscription",
-    price: "$199.00",
-    credits: 500,
-    isPopular: true,
-    features: [
-      "500 credits monthly",
-      "Priority support",
-      "Advanced image generation",
-      "Unlimited variations",
-      "Commercial usage rights"
-    ]
-  },
-  {
-    name: "1000 credit topup",
-    description: "One-time purchase of 1000 credits",
-    priceId: "price_1RMvZAF2bI4ojX8oNRHofr8e",
+    name: "15 credits topup",
+    description: "One-time purchase of 15 credits",
+    priceId: "price_1ROSqdF2bI4ojX8oCnn1KrLz",
     mode: "payment",
-    price: "$2.00",
-    credits: 1000,
+    price: "$11.25",
+    credits: 15,
     features: [
-      "1000 credits",
+      "15 credits",
       "Never expires",
       "Commercial usage rights"
     ]
   },
   {
-    name: "100 credit topup",
+    name: "100 credits topup",
     description: "One-time purchase of 100 credits",
-    priceId: "price_1RMvYxF2bI4ojX8oMHTLIdnu",
+    priceId: "price_1ROSv9F2bI4ojX8oVfZTjrWc",
     mode: "payment",
-    price: "$1.15",
+    price: "$75.00",
     credits: 100,
     features: [
       "100 credits",
@@ -43,16 +27,45 @@ export const products = [
     ]
   },
   {
-    name: "10 credit topup",
-    description: "One-time purchase of 10 credits",
-    priceId: "price_1RMvYhF2bI4ojX8oY93qcb91",
+    name: "200 credits topup",
+    description: "One-time purchase of 200 credits",
+    priceId: "price_1ROSrtF2bI4ojX8oUXGfG4gl",
     mode: "payment",
-    price: "$1.00",
-    credits: 10,
+    price: "$120.00",
+    credits: 200,
     features: [
-      "10 credits",
+      "200 credits",
       "Never expires",
-      "Commercial usage rights"
+      "Commercial usage rights",
+      "Bulk discount savings"
+    ]
+  },
+  {
+    name: "500 credits topup",
+    description: "One-time purchase of 500 credits",
+    priceId: "price_1ROSscF2bI4ojX8oqTG5shTT",
+    mode: "payment",
+    price: "$300.00",
+    credits: 500,
+    features: [
+      "500 credits",
+      "Never expires",
+      "Commercial usage rights",
+      "Premium bulk discount"
+    ]
+  },
+  {
+    name: "1000 credits topup",
+    description: "One-time purchase of 1000 credits",
+    priceId: "price_1ROStVF2bI4ojX8oin1uKTI9",
+    mode: "payment",
+    price: "$562.50",
+    credits: 1000,
+    features: [
+      "1000 credits",
+      "Never expires",
+      "Commercial usage rights",
+      "Maximum bulk savings"
     ]
   }
 ];
