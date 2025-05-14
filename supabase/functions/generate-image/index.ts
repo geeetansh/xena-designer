@@ -329,7 +329,7 @@ Deno.serve(async (req: Request) => {
             const openaiRequest: any = {
               model: "gpt-image-1",
               prompt: prompt,
-              quality: "high",
+              quality: "low",
               size: openAISize
             };
             
