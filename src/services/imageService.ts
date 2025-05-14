@@ -4,6 +4,7 @@ import { mapLayoutToOpenAISize } from '@/lib/utils';
 import { log, error as logError, success, uploadLog, startOperation, endOperation, formatFileSize } from '@/lib/logger';
 import { uploadFromBuffer } from './AssetsService';
 import { trackEvent } from '@/lib/posthog';
+import { getImageQuality } from '@/services/settingsService';
 
 export type GeneratedImage = {
   id: string;
@@ -237,7 +238,8 @@ export async function checkUserCredits(): Promise<{ hasCredits: boolean, credits
           .insert({
             user_id: user.id,
             credits: 10,
-            credits_used: 0
+            credits_used: 0,
+            image_quality: 'low'
           });
         
         return { hasCredits: true, credits: 10 };
@@ -253,7 +255,8 @@ export async function checkUserCredits(): Promise<{ hasCredits: boolean, credits
         .insert({
           user_id: user.id,
           credits: 10,
-          credits_used: 0
+          credits_used: 0,
+          image_quality: 'low'
         });
       
       return { hasCredits: true, credits: 10 };
@@ -328,7 +331,8 @@ export async function getUserCredits(): Promise<{ credits: number, creditsUsed: 
           .insert({
             user_id: user.id,
             credits: 10,
-            credits_used: 0
+            credits_used: 0,
+            image_quality: 'low'
           })
           .select('credits, credits_used')
           .single();
@@ -392,7 +396,8 @@ export async function generateImage(
   prompt: string,
   referenceImageUrls: string[] = [],
   variants: number = 1,
-  size: string = 'auto'
+  size: string = 'auto',
+  quality: string = 'low'
 ): Promise<{ urls: string[], variationGroupId: string, rawJson?: any }> {
   startOperation(`Generating ${variants} images (${size}) with prompt: "${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}"`);
   const startTime = Date.now();
@@ -435,7 +440,8 @@ export async function generateImage(
     prompt: prompt.substring(0, 100),
     reference_count: allReferenceImageUrls.length,
     variants,
-    size
+    size,
+    quality
   });
   
   // Get the current session for authorization
@@ -498,7 +504,8 @@ export async function generateImage(
         reference_images_count: allReferenceImageUrls.length,
         prompt: prompt.length > 50 ? prompt.substring(0, 50) + "..." : prompt,
         variants,
-        size: mappedSize
+        size: mappedSize,
+        quality
       };
       
       log(`Request payload summary: ${JSON.stringify(payloadSummary)}`);
@@ -508,7 +515,8 @@ export async function generateImage(
         referenceUrls: allReferenceImageUrls.map(url => url.substring(0, 30) + '...'),
         prompt: prompt.substring(0, 50) + (prompt.length > 50 ? '...' : ''),
         variants,
-        size: mappedSize
+        size: mappedSize,
+        quality
       });
       
       const response = await fetch(`${supabaseUrl}/functions/v1/generate-image`, {
@@ -522,7 +530,8 @@ export async function generateImage(
           reference_images: allReferenceImageUrls,
           prompt,
           variants: variants,
-          size: mappedSize
+          size: mappedSize,
+          quality
         }),
         signal: controller.signal
       });
@@ -593,7 +602,7 @@ export async function generateImage(
         // Update all task records to 'failed' status
         for (let i = 0; i < variants; i++) {
           await supabase
-            .from('generation_tasks')
+            .from("generation_tasks")
             .update({
               status: 'failed',
               error_message: `OpenAI API Error: ${data.error || 'Unknown error'}`,
@@ -728,7 +737,7 @@ export async function generateImage(
       // Update all task records to 'failed' status
       for (let i = 0; i < variants; i++) {
         await supabase
-          .from('generation_tasks')
+          .from("generation_tasks")
           .update({
             status: 'failed',
             error_message: errorMsg,
@@ -979,7 +988,7 @@ export async function saveGeneratedImage(
           user_id: user.id,
           prompt,
           status: 'completed',
-          reference_image_urls: referenceImageUrls,
+          reference_image_urls: referenceUrls,
           result_image_url: finalImageUrl,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),

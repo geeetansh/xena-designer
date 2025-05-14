@@ -144,7 +144,8 @@ Deno.serve(async (req: Request) => {
         prompt_length: requestBody.prompt?.length || 0,
         reference_count: requestBody.reference_images?.length || 0,
         variants: requestBody.variants || 1,
-        size: requestBody.size || 'auto'
+        size: requestBody.size || 'auto',
+        quality: requestBody.quality || 'low'
       })}`, executionId);
     } catch (error) {
       logError("Failed to parse request body", executionId, error);
@@ -158,7 +159,8 @@ Deno.serve(async (req: Request) => {
       reference_images: referenceImageUrls = [], 
       prompt, 
       variants = 1,
-      size = 'auto'
+      size = 'auto',
+      quality = 'low'
     } = requestBody;
     
     // Validate input
@@ -293,7 +295,7 @@ Deno.serve(async (req: Request) => {
           const openAISize = mapSizeToOpenAI(size);
           
           // Log OpenAI request parameters
-          logInfo(`Calling OpenAI API: size=${openAISize}, ${imageFiles.length} reference images, prompt length=${prompt.length}`, executionId);
+          logInfo(`Calling OpenAI API: size=${openAISize}, quality=${quality}, ${imageFiles.length} reference images, prompt length=${prompt.length}`, executionId);
           const apiStartTime = Date.now();
           
           // Use OpenAI to generate image
@@ -307,7 +309,7 @@ Deno.serve(async (req: Request) => {
               model: "gpt-image-1",
               prompt: prompt,
               image: imageFiles,
-              quality: "high",
+              quality: quality, // Use the quality parameter from the request
               size: openAISize
             };
             
@@ -329,7 +331,7 @@ Deno.serve(async (req: Request) => {
             const openaiRequest: any = {
               model: "gpt-image-1",
               prompt: prompt,
-              quality: "low",
+              quality: quality, // Use the quality parameter from the request
               size: openAISize
             };
             

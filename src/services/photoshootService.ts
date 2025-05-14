@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { uploadImageFile, generateImage } from './imageService';
 import { mapLayoutToOpenAISize } from '@/lib/utils';
 import { log, success, error as logError, startOperation, endOperation } from '@/lib/logger';
+import { getImageQuality } from '@/services/settingsService';
 
 export type PhotoshootStatus = 'pending' | 'processing' | 'completed' | 'failed';
 export type PhotoshootType = 'photoshoot' | 'static_ad';
@@ -50,6 +51,10 @@ export async function createPhotoshoot(
     if (!user) {
       throw new Error('User not authenticated');
     }
+    
+    // Get the user's image quality setting
+    const imageQuality = await getImageQuality();
+    log(`User's image quality setting: ${imageQuality}`);
     
     // Handle product image - either use URL or upload file
     let finalProductImageUrl: string;
@@ -140,7 +145,8 @@ export async function createPhotoshoot(
         prompt, 
         referenceUrls, 
         variants, 
-        layout
+        layout,
+        imageQuality
       ).then(async (result) => {
         log(`Generated ${result.urls.length} images successfully with variation group ID: ${result.variationGroupId}`);
         

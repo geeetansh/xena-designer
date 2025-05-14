@@ -16,10 +16,11 @@ import {
   getUserCredits,
   deductUserCredit
 } from '@/services/imageService';
+import { getImageQuality } from '@/services/settingsService';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { log, error as logError } from '@/lib/logger';
+import { log, error as logError, success, uploadLog } from '@/lib/logger';
 import {
   Alert,
   AlertDescription,
@@ -68,23 +69,31 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
   const [selectedLayout, setSelectedLayout] = useState('auto');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [generationProgress, setGenerationProgress] = useState(0);
+  const [imageQuality, setImageQuality] = useState('low');
   
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Fetch user's credits on component mount
+  // Fetch user's credits and image quality on component mount
   useEffect(() => {
-    async function fetchUserCredits() {
+    async function fetchUserData() {
       try {
+        // Fetch credits
         const { hasCredits, credits } = await checkUserCredits();
         setCredits(credits);
         setNoCreditsWarning(!hasCredits);
+        
+        // Fetch image quality
+        const quality = await getImageQuality();
+        setImageQuality(quality);
+        
+        console.log(`User settings loaded: credits=${credits}, imageQuality=${quality}`);
       } catch (error) {
-        console.error('Error checking user credits:', error);
+        console.error('Error checking user data:', error);
       }
     }
     
-    fetchUserCredits();
+    fetchUserData();
   }, []);
 
   // Handle image generation
@@ -122,7 +131,7 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
       
       // Get the number of variants
       const variants = parseInt(variantCount, 10);
-      log(`Generating ${variants} variant(s) with prompt: ${prompt}, size: ${selectedLayout}`);
+      log(`Generating ${variants} variant(s) with prompt: ${prompt}, size: ${selectedLayout}, quality: ${imageQuality}`);
       
       // Call onImageGenerated to trigger notification immediately
       log('Triggering onImageGenerated callback for immediate notification');
@@ -135,7 +144,14 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
       log(`Calling generateImage with ${variants} variants`);
       const generationStart = Date.now();
       
-      const result = await generateImage(referenceFiles, prompt, referenceUrls, variants, selectedLayout);
+      const result = await generateImage(
+        referenceFiles, 
+        prompt, 
+        referenceUrls, 
+        variants, 
+        selectedLayout,
+        imageQuality
+      );
       
       log(`Generation result received in ${((Date.now() - generationStart) / 1000).toFixed(1)}s`);
       

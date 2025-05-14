@@ -168,3 +168,72 @@ export async function saveUserSettings(settings: any): Promise<boolean> {
     return false;
   }
 }
+
+// Get image quality setting
+export async function getImageQuality(): Promise<string> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return 'low';
+    }
+    
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('image_quality')
+      .eq('user_id', user.id)
+      .single();
+    
+    if (error) {
+      console.error('Error fetching image quality:', error);
+      return 'low';
+    }
+    
+    return data?.image_quality || 'low';
+  } catch (error) {
+    console.error('Error getting image quality:', error);
+    return 'low';
+  }
+}
+
+// Save image quality setting
+export async function saveImageQuality(imageQuality: string): Promise<boolean> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+    
+    // Check if user profile exists
+    const { data: existingProfile } = await supabase
+      .from('user_profiles')
+      .select('id')
+      .eq('user_id', user.id)
+      .single();
+    
+    if (existingProfile) {
+      // Update existing profile
+      await supabase
+        .from('user_profiles')
+        .update({
+          image_quality: imageQuality,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user.id);
+    } else {
+      // Create new profile
+      await supabase
+        .from('user_profiles')
+        .insert({
+          user_id: user.id,
+          image_quality: imageQuality
+        });
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error saving image quality:', error);
+    return false;
+  }
+}
