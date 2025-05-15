@@ -1079,8 +1079,8 @@ export default function NewAssetPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-16">
-      {/* Header */}
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Sticky Header */}
       <header className="sticky top-0 z-10 bg-background border-b py-3 md:py-4 px-3 md:px-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <Button 
@@ -1101,25 +1101,31 @@ export default function NewAssetPage() {
         </div>
       </header>
       
-      <main className="max-w-7xl mx-auto px-3 md:px-6 py-4 md:py-8">
-        {/* Progress indicator */}
-        <div className="mb-4 md:mb-8 max-w-4xl mx-auto">
-          {renderStepIndicator()}
-          
-          {/* Step title and description */}
-          <div className="text-center mt-4 md:mt-8 mb-4 md:mb-8">
-            <h2 className="text-lg md:text-2xl font-semibold mb-1 md:mb-2">{getStepTitle()}</h2>
-            <p className="text-xs md:text-base text-muted-foreground">{getStepDescription()}</p>
+      <main className="flex-1 flex flex-col">
+        {/* Progress indicator section - not part of scrollable area */}
+        <div className="px-3 md:px-6 py-4 md:py-8">
+          <div className="max-w-4xl mx-auto">
+            {renderStepIndicator()}
+            
+            {/* Step title and description */}
+            <div className="text-center mt-4 md:mt-8 mb-4 md:mb-8">
+              <h2 className="text-lg md:text-2xl font-semibold mb-1 md:mb-2">{getStepTitle()}</h2>
+              <p className="text-xs md:text-base text-muted-foreground">{getStepDescription()}</p>
+            </div>
           </div>
         </div>
         
-        {/* Main content area */}
-        <div className="min-h-[300px] md:min-h-[400px]">
-          {renderStepContent()}
+        {/* Scrollable content area */}
+        <div className="flex-1 overflow-y-auto px-3 md:px-6 pb-24">
+          <div className="min-h-[300px] md:min-h-[400px] max-w-7xl mx-auto">
+            {renderStepContent()}
+          </div>
         </div>
-        
-        {/* Navigation buttons */}
-        <div className="mt-8 md:mt-16 max-w-4xl mx-auto flex items-center justify-between pt-4 md:pt-8 border-t">
+      </main>
+      
+      {/* Sticky Footer */}
+      <footer className="sticky bottom-0 z-10 bg-background border-t py-4 px-3 md:px-6">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
           <Button
             variant="outline"
             size="sm"
@@ -1143,7 +1149,7 @@ export default function NewAssetPage() {
             </Button>
           )}
         </div>
-      </main>
+      </footer>
       
       {/* Image selection modals */}
       <ImageSelectionModal
