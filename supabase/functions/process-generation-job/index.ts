@@ -3,8 +3,8 @@ import { createClient } from "npm:@supabase/supabase-js@2.39.8";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
+  "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-auth"
 };
 
 // Initialize OpenAI with environment variables
@@ -13,7 +13,7 @@ const openai = new OpenAI({
 });
 
 Deno.serve(async (req: Request) => {
-  // Handle CORS
+  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 200,
@@ -25,10 +25,28 @@ Deno.serve(async (req: Request) => {
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    
+    if (!supabaseUrl || !supabaseKey) {
+      return new Response(
+        JSON.stringify({ error: "Missing Supabase environment variables" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
     const supabase = createClient(supabaseUrl, supabaseKey);
     
     // Parse the request
-    const { variationId } = await req.json();
+    let requestData;
+    try {
+      requestData = await req.json();
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ error: "Invalid JSON in request body" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    const { variationId } = requestData;
     
     if (!variationId) {
       return new Response(
@@ -75,22 +93,30 @@ Deno.serve(async (req: Request) => {
     }
     
     // Update job status to in_progress
-    await supabase
+    const { error: updateJobError } = await supabase
       .from('generation_jobs')
       .update({ 
         status: 'in_progress',
         updated_at: new Date().toISOString() 
       })
       .eq('id', job.id);
+      
+    if (updateJobError) {
+      console.error("Failed to update job status:", updateJobError);
+    }
     
     // Update variation status
-    await supabase
+    const { error: updateVariationError } = await supabase
       .from('prompt_variations')
       .update({ 
         status: 'in_progress',
         updated_at: new Date().toISOString() 
       })
       .eq('id', variationId);
+      
+    if (updateVariationError) {
+      console.error("Failed to update variation status:", updateVariationError);
+    }
     
     // Begin gathering reference images
     const session = variation.automation_sessions;
@@ -193,12 +219,23 @@ Deno.serve(async (req: Request) => {
       const binaryData = Uint8Array.from(atob(generatedImageBase64), char => char.charCodeAt(0));
       
       // Create a unique path for the image
-      const userId = (await supabase.auth.getSession()).data.session?.user.id;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData?.session?.user?.id;
+      
       if (!userId) {
-        throw new Error("Failed to determine user ID");
+        // Try to get the user ID from the automation session
+        const { data: sessionInfo } = await supabase
+          .from('automation_sessions')
+          .select('user_id')
+          .eq('id', variation.session_id)
+          .single();
+          
+        if (!sessionInfo?.user_id) {
+          throw new Error("Failed to determine user ID");
+        }
       }
       
-      const imagePath = `${userId}/automated/${variation.session_id}/${variation.id}.png`;
+      const imagePath = `${userId || sessionInfo.user_id}/automated/${variation.session_id}/${variation.id}.png`;
       
       // Make sure the bucket exists
       try {
@@ -214,10 +251,10 @@ Deno.serve(async (req: Request) => {
         console.error(`Error checking/creating bucket:`, error);
       }
       
-      // Upload to storage
+      // Upload to storage - Fix: don't use .buffer on Uint8Array
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("automated")
-        .upload(imagePath, binaryData.buffer, {
+        .upload(imagePath, binaryData, {
           contentType: "image/png",
           upsert: true
         });
