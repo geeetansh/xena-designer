@@ -18,11 +18,10 @@ import {
 } from 'lucide-react';
 import { GalleryVerticalEnd as LuGalleryVerticalEnd } from "lucide-react";
 import { TbSmartHome, TbPhotoSquareRounded } from 'react-icons/tb';
-import { FaMeta } from "react-icons/fa6";
+import { FaRegBell, FaBullhorn } from "react-icons/fa6";
 import { SiShopify } from "react-icons/si";
 import { IoSettingsOutline } from "react-icons/io5";
 import { LuLibrary } from "react-icons/lu";
-import { RiRobot2Line } from "react-icons/ri";
 
 export default function DashboardLayout() {
   const [imageCount, setImageCount] = useState(0);
@@ -192,13 +191,13 @@ export default function DashboardLayout() {
     generate: [
       { 
         id: 'photoshoot', 
-        label: 'Generate Now', 
+        label: 'Photoshoots', 
         icon: <TbPhotoSquareRounded className="h-5 w-5" />
       },
       { 
         id: 'automate', 
-        label: 'Automate', 
-        icon: <RiRobot2Line className="h-5 w-5" />
+        label: 'Static ad', 
+        icon: <FaBullhorn className="h-5 w-5" />
       }
     ],
     others: [
@@ -220,9 +219,9 @@ export default function DashboardLayout() {
       case 'library':
         return 'Assets';
       case 'photoshoot':
-        return 'Generate Now';
+        return 'Photoshoots';
       case 'automate':
-        return 'Automate';
+        return 'Static ad';
       case 'products':
         return 'My Products';
       case 'settings':
@@ -377,8 +376,8 @@ export default function DashboardLayout() {
   const mobileNavItems = [
     navigationItems.main[0], // Home
     navigationItems.main[1], // Gallery
-    navigationItems.generate[0], // Generate Now
-    navigationItems.generate[1], // Automate
+    navigationItems.generate[0], // Photoshoots
+    navigationItems.generate[1], // Static ad
   ];
 
   return (
