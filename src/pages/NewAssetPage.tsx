@@ -419,11 +419,11 @@ export default function NewAssetPage() {
               )}
               onClick={() => handleAssetTypeSelect('photoshoot')}
             >
-              <CardContent className="p-3 md:p-6">
+              <CardContent className="p-2 md:p-6">
                 <div className="flex flex-col">
                   <div className="aspect-video overflow-hidden rounded-lg mb-2 md:mb-4 relative">
                     <LazyImage 
-                      src="https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6813f044660d7695cc48b000_iconic-convert-product-imag.png"
+                      src="https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6823e3040af5498347113989_1.jpg"
                       alt="Photoshoots"
                       className="w-full h-full object-cover"
                     />
@@ -448,11 +448,11 @@ export default function NewAssetPage() {
               )}
               onClick={() => handleAssetTypeSelect('static_ad')}
             >
-              <CardContent className="p-3 md:p-6">
+              <CardContent className="p-2 md:p-6">
                 <div className="flex flex-col">
                   <div className="aspect-video overflow-hidden rounded-lg mb-2 md:mb-4 relative">
                     <LazyImage 
-                      src="https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6813f0507f8b3038b447e8e6_download%20(2).png"
+                      src="https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6823e3040af5498347113989_1.jpg"
                       alt="Social Ads"
                       className="w-full h-full object-cover"
                     />
