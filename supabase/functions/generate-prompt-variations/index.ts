@@ -12,6 +12,101 @@ const openai = new OpenAI({
   apiKey: Deno.env.get("VITE_OPENAI_API_KEY")
 });
 
+/**
+ * Downloads an image from a URL and returns it as a Blob
+ * This function handles both external URLs and Supabase storage URLs
+ */
+async function downloadImageFromUrl(url: string, supabase: any, supabaseUrl: string): Promise<Blob | null> {
+  try {
+    console.log(`Downloading image from: ${url.substring(0, 50)}...`);
+    
+    // For external URLs, fetch directly
+    if (!url.includes(supabaseUrl)) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
+      const blob = await response.blob();
+      console.log(`Downloaded external image (${blob.size} bytes)`);
+      return blob;
+    } else {
+      // For Supabase URLs, extract bucket and path
+      const urlPath = new URL(url).pathname;
+      const parts = urlPath.split('/');
+      const bucketIndex = parts.indexOf("public") + 1;
+      
+      if (bucketIndex <= 0) {
+        throw new Error('Invalid URL format');
+      }
+      
+      const bucket = parts[bucketIndex];
+      const path = parts.slice(bucketIndex + 1).join('/');
+      
+      console.log(`Extracting from Supabase storage: bucket=${bucket}, path=${path}`);
+      
+      // Download from Supabase Storage
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .download(path);
+        
+      if (error) {
+        throw new Error(`Failed to download reference image: ${error.message}`);
+      }
+      
+      if (!data) {
+        throw new Error('No file data returned from storage');
+      }
+      
+      console.log(`Downloaded image from Supabase storage`);
+      return data;
+    }
+  } catch (error) {
+    console.error(`ERROR downloading image from ${url}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Prepares images for OpenAI by downloading them and converting to base64
+ */
+async function prepareImagesForOpenAI(imageUrls: string[], supabase: any, supabaseUrl: string): Promise<string[]> {
+  console.log(`Preparing ${imageUrls.length} images for OpenAI`);
+  
+  const imageBlobs: Array<Blob | null> = await Promise.all(
+    imageUrls.map(url => downloadImageFromUrl(url, supabase, supabaseUrl))
+  );
+  
+  // Filter out null blobs and convert to base64
+  const base64Images = await Promise.all(
+    imageBlobs
+      .filter((blob): blob is Blob => blob !== null)
+      .map(async (blob) => {
+        return await blobToBase64(blob);
+      })
+  );
+  
+  console.log(`Successfully prepared ${base64Images.length}/${imageUrls.length} images`);
+  return base64Images;
+}
+
+/**
+ * Converts a Blob to a base64 string
+ */
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        // Remove the data URL prefix (e.g., "data:image/png;base64,")
+        const base64String = reader.result.split(',')[1];
+        resolve(base64String);
+      } else {
+        reject(new Error("Failed to convert blob to base64"));
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 Deno.serve(async (req: Request) => {
   // Handle CORS
   if (req.method === "OPTIONS") {
@@ -91,10 +186,23 @@ Deno.serve(async (req: Request) => {
       .delete()
       .eq('session_id', sessionId);
 
+    // Collect image URLs from the session
+    const imageUrls: string[] = [];
+    if (session.product_image_url) {
+      imageUrls.push(session.product_image_url);
+    }
+    if (session.brand_logo_url) {
+      imageUrls.push(session.brand_logo_url);
+    }
+    if (session.reference_ad_url) {
+      imageUrls.push(session.reference_ad_url);
+    }
+    
+    // Download and prepare the images
+    const imageContent = await prepareImagesForOpenAI(imageUrls, supabase, supabaseUrl);
+
     // Construct the ChatGPT message
-    const systemMessage = `You are an expert ecommerce ad copywriter and marketing specialist. You create compelling, professional, 
-and detailed prompts for AI image generators to create product advertisements. Each prompt should be detailed and specific, 
-focusing on high-quality product photography, professional marketing aesthetics, and commercial appeal.`;
+    const systemMessage = `You are an expert ecommerce ad copywriter and marketing specialist. You create compelling, professional, and detailed prompts for AI image generators to create product advertisements. Each prompt should be detailed and specific, focusing on high-quality product photography, professional marketing aesthetics, and commercial appeal.`;
 
     const userMessageContent = `Create ${session.variation_count} different, 
 detailed prompts for generating product advertisements with these specifications:
@@ -104,12 +212,13 @@ ${session.brand_logo_url ? `Brand Logo: ${session.brand_logo_url}` : ''}
 ${session.reference_ad_url ? `Reference Ad Style: ${session.reference_ad_url}` : ''}
 ${session.instructions ? `Additional Instructions: ${session.instructions}` : ''}
 
+Use the product and reference ad attached image thoroughly to come up with a prompt. The goal is to create variations of a successful ad attached as reference.
+
 Each prompt should:
 1. Detail a unique ad concept and style
 2. Specify how the product should be presented
 3. Describe lighting, background, and overall composition
 4. Include marketing-oriented details like suggested text positioning or themes
-5. Be at least 100 words to provide sufficient detail for high-quality generation
 
 Format your response as a valid JSON with a "prompts" field containing an array of strings, each string being a complete prompt. Example:
 \`\`\`json
@@ -122,15 +231,45 @@ Format your response as a valid JSON with a "prompts" field containing an array 
 }
 \`\`\``;
 
-    // Call ChatGPT to generate prompts
+    // Call ChatGPT to generate prompts, including images when available
     console.log("Calling OpenAI API with model: o4-mini");
-    const chatResponse = await openai.chat.completions.create({
-      model: "o4-mini",
-      messages: [
+    let chatResponse;
+    
+    // Different API call depending on whether we have images or not
+    if (imageContent.length > 0) {
+      console.log("Including images in OpenAI request");
+      
+      // Create message array with image content
+      const messages = [
         { role: "system", content: systemMessage },
-        { role: "user", content: userMessageContent }
-      ]
-    });
+        { 
+          role: "user", 
+          content: [
+            { type: "text", text: userMessageContent },
+            ...imageContent.map(base64Image => ({
+              type: "image_url",
+              image_url: {
+                url: `data:image/png;base64,${base64Image}`
+              }
+            }))
+          ] 
+        }
+      ];
+      
+      chatResponse = await openai.chat.completions.create({
+        model: "o4-mini",
+        messages: messages
+      });
+    } else {
+      console.log("No images available, using text-only OpenAI request");
+      chatResponse = await openai.chat.completions.create({
+        model: "o4-mini",
+        messages: [
+          { role: "system", content: systemMessage },
+          { role: "user", content: userMessageContent }
+        ]
+      });
+    }
     
     console.log("OpenAI response received");
 
