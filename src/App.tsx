@@ -17,6 +17,7 @@ import GalleryPage from '@/pages/GalleryPage';
 import LibraryPage from '@/pages/LibraryPage';
 import PhotoshootPage from '@/pages/PhotoshootPage';
 import AutomatePage from '@/pages/AutomatePage';
+import AutomationBuilderPage from '@/pages/AutomationBuilderPage';
 import SettingsPage from '@/pages/SettingsPage';
 import ProductsPage from '@/pages/ProductsPage';
 import NewAssetPage from '@/pages/NewAssetPage';
@@ -219,9 +220,13 @@ function App() {
           <Route path="/sign-up" element={<AuthRoute><SignUpPage /></AuthRoute>} />
           <Route path="/login" element={<AuthRoute><LoginPage /></AuthRoute>} />
           
-          {/* New Asset Page (full-page editor) */}
+          {/* Full-page editors */}
           <Route path="/new-asset" element={
             session ? <NewAssetPage /> : <Navigate to="/login" replace state={{ from: location }} />
+          } />
+          
+          <Route path="/automation-builder" element={
+            session ? <AutomationBuilderPage /> : <Navigate to="/login" replace state={{ from: location }} />
           } />
           
           {/* Protected routes - all nested under DashboardLayout */}

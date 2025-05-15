@@ -378,7 +378,7 @@ export default function DashboardLayout() {
     navigationItems.main[0], // Home
     navigationItems.main[1], // Gallery
     navigationItems.generate[0], // Generate Now
-    navigationItems.others[0], // Assets
+    navigationItems.generate[1], // Automate
   ];
 
   return (

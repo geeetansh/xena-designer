@@ -14,7 +14,7 @@ import { LazyImage } from '@/components/LazyImage';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
-import { AutomatedAdsBuilderModal } from '@/components/AutomatedAdsBuilderModal';
+import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -37,7 +37,6 @@ interface GenerationJob {
 
 export default function AutomatePage() {
   // State
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [generationJobs, setGenerationJobs] = useState<GenerationJob[]>([]);
   const [selectedJob, setSelectedJob] = useState<GenerationJob | null>(null);
   const [isJobDetailsOpen, setIsJobDetailsOpen] = useState(false);
@@ -46,6 +45,7 @@ export default function AutomatePage() {
 
   const latestJobsRef = useRef<GenerationJob[]>([]);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   // Load recent jobs on mount
   useEffect(() => {
@@ -94,19 +94,6 @@ export default function AutomatePage() {
     } finally {
       setIsRefreshing(false);
     }
-  };
-
-  // Handle session creation success
-  const handleSessionCreated = (sessionId: string) => {
-    toast({
-      title: "Ad generation started",
-      description: "Your automated ads are being created. Check back shortly to see the results."
-    });
-    
-    // Refresh the jobs list after a short delay
-    setTimeout(() => {
-      fetchLatestJobs();
-    }, 2000);
   };
 
   // Action handlers
@@ -162,7 +149,7 @@ export default function AutomatePage() {
           </Button>
           
           <Button 
-            onClick={() => setIsModalOpen(true)} 
+            onClick={() => navigate('/automation-builder')} 
             className="gap-1.5 h-8 md:h-9 text-xs md:text-sm"
             size="sm"
           >
@@ -185,7 +172,7 @@ export default function AutomatePage() {
           <p className="text-sm text-muted-foreground mb-6 max-w-md">
             Create your first automated ad campaign to see the results here.
           </p>
-          <Button onClick={() => setIsModalOpen(true)}>
+          <Button onClick={() => navigate('/automation-builder')}>
             Create Automated Ads
           </Button>
         </div>
@@ -256,13 +243,6 @@ export default function AutomatePage() {
           ))}
         </div>
       )}
-
-      {/* Automation Builder Modal */}
-      <AutomatedAdsBuilderModal 
-        open={isModalOpen}
-        onOpenChange={setIsModalOpen}
-        onSuccess={handleSessionCreated}
-      />
 
       {/* Image Details Dialog */}
       <Dialog open={isJobDetailsOpen} onOpenChange={setIsJobDetailsOpen}>
