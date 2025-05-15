@@ -292,48 +292,60 @@ Deno.serve(async (req: Request) => {
         .eq('id', variationId);
       
       // Check if this was the last job for this session
-      const { data: remainingJobs, error: countError } = await supabase
-        .from('generation_jobs')
-        .select('id', { count: 'exact' })
-        .eq('status', 'queued')
-        .in('variation_id', supabase.from('prompt_variations')
-          .select('id')
-          .eq('session_id', variation.session_id));
+      // First, get all the variation IDs for this session
+      const { data: variationIds, error: variationIdsError } = await supabase
+        .from('prompt_variations')
+        .select('id')
+        .eq('session_id', variation.session_id);
       
-      if (!countError) {
-        // If there are more jobs, start the next one
-        if (remainingJobs && remainingJobs.length > 0) {
-          // Find the next job
-          const { data: nextVariation } = await supabase
-            .from('prompt_variations')
-            .select('id')
-            .eq('session_id', variation.session_id)
-            .eq('status', 'ready')
-            .order('index')
-            .limit(1);
-            
-          if (nextVariation && nextVariation.length > 0) {
-            // Process the next job
-            await fetch(`${supabaseUrl}/functions/v1/process-generation-job`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${supabaseKey}`
-              },
-              body: JSON.stringify({ 
-                variationId: nextVariation[0].id
+      if (variationIdsError) {
+        console.error("Error fetching variation IDs:", variationIdsError);
+      } else if (variationIds && variationIds.length > 0) {
+        // Extract the IDs as an array
+        const ids = variationIds.map(v => v.id);
+        
+        // Now query for queued jobs with these variation IDs
+        const { data: remainingJobs, error: countError } = await supabase
+          .from('generation_jobs')
+          .select('id', { count: 'exact' })
+          .eq('status', 'queued')
+          .in('variation_id', ids);
+        
+        if (!countError) {
+          // If there are more jobs, start the next one
+          if (remainingJobs && remainingJobs.length > 0) {
+            // Find the next job
+            const { data: nextVariation } = await supabase
+              .from('prompt_variations')
+              .select('id')
+              .eq('session_id', variation.session_id)
+              .eq('status', 'ready')
+              .order('index')
+              .limit(1);
+              
+            if (nextVariation && nextVariation.length > 0) {
+              // Process the next job
+              await fetch(`${supabaseUrl}/functions/v1/process-generation-job`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${supabaseKey}`
+                },
+                body: JSON.stringify({ 
+                  variationId: nextVariation[0].id
+                })
+              });
+            }
+          } else {
+            // All jobs are complete, update the session status
+            await supabase
+              .from('automation_sessions')
+              .update({
+                status: 'completed',
+                updated_at: new Date().toISOString()
               })
-            });
+              .eq('id', variation.session_id);
           }
-        } else {
-          // All jobs are complete, update the session status
-          await supabase
-            .from('automation_sessions')
-            .update({
-              status: 'completed',
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', variation.session_id);
         }
       }
       
