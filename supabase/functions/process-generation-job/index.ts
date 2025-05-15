@@ -220,7 +220,7 @@ Deno.serve(async (req: Request) => {
       
       // Create a unique path for the image
       const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData?.session?.user?.id;
+      let userId = sessionData?.session?.user?.id;
       
       if (!userId) {
         // Try to get the user ID from the automation session
@@ -233,9 +233,11 @@ Deno.serve(async (req: Request) => {
         if (!sessionInfo?.user_id) {
           throw new Error("Failed to determine user ID");
         }
+        
+        userId = sessionInfo.user_id;
       }
       
-      const imagePath = `${userId || sessionInfo.user_id}/automated/${variation.session_id}/${variation.id}.png`;
+      const imagePath = `${userId}/automated/${variation.session_id}/${variation.id}.png`;
       
       // Make sure the bucket exists
       try {
@@ -251,7 +253,7 @@ Deno.serve(async (req: Request) => {
         console.error(`Error checking/creating bucket:`, error);
       }
       
-      // Upload to storage - Fix: don't use .buffer on Uint8Array
+      // Upload to storage - FIXED: don't use .buffer on Uint8Array
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("automated")
         .upload(imagePath, binaryData, {
