@@ -111,13 +111,15 @@ Each prompt should:
 4. Include marketing-oriented details like suggested text positioning or themes
 5. Be at least 100 words to provide sufficient detail for high-quality generation
 
-Format your response as a JSON array of strings, each string being a complete prompt. Example:
+Format your response as a valid JSON with a "prompts" field containing an array of strings, each string being a complete prompt. Example:
 \`\`\`json
-[
-  "Create a professional product advertisement for...",
-  "Design a lifestyle marketing image featuring...",
-  "Generate a minimalist product showcase with..."
-]
+{
+  "prompts": [
+    "Create a professional product advertisement for...",
+    "Design a lifestyle marketing image featuring...",
+    "Generate a minimalist product showcase with..."
+  ]
+}
 \`\`\``;
 
     // Call ChatGPT to generate prompts
@@ -144,6 +146,8 @@ Format your response as a JSON array of strings, each string being a complete pr
       .single();
     
     if (responseError) {
+      console.error("Failed to save response:", responseError);
+      console.log("Raw response content:", responseContent);
       return new Response(
         JSON.stringify({ error: `Failed to save response: ${responseError.message}` }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -152,10 +156,11 @@ Format your response as a JSON array of strings, each string being a complete pr
 
     // Parse the JSON response
     try {
-      const promptsArray = JSON.parse(responseContent).prompts || [];
+      const parsedResponse = JSON.parse(responseContent);
+      const promptsArray = parsedResponse.prompts;
       
-      if (!Array.isArray(promptsArray)) {
-        throw new Error("Expected an array of prompts");
+      if (!promptsArray || !Array.isArray(promptsArray)) {
+        throw new Error(`Expected an array of prompts, got: ${JSON.stringify(parsedResponse)}`);
       }
       
       // Insert the prompt variations
