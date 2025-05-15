@@ -401,93 +401,103 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
       
       <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
         {selectedImage && (
-          <DialogContent className="max-w-4xl md:max-w-5xl sm:max-w-[60%] p-4 md:p-6">
-            <DialogHeader>
-              <DialogTitle className="text-base md:text-lg">Generated image overview</DialogTitle>
-            </DialogHeader>
+          <DialogContent className="max-w-4xl md:max-w-5xl sm:max-w-[60%] p-0 overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Sticky Header */}
+            <div className="sticky top-0 z-10 bg-background px-4 pt-4 pb-2 border-b">
+              <DialogHeader className="flex flex-row items-center justify-between">
+                <DialogTitle className="text-base md:text-lg">Generated image overview</DialogTitle>
+                <DialogClose className="opacity-70 hover:opacity-100 transition-opacity" />
+              </DialogHeader>
+            </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 py-2 md:py-4">
-              {/* Left side - Image */}
-              <div className="space-y-3 md:space-y-4">
-                <div className="rounded-lg overflow-hidden">
-                  <img 
-                    src={getTransformedImageUrl(selectedImage.url, { width: 800, format: 'webp' })}
-                    alt={selectedImage.prompt}
-                    className="object-contain w-full h-full"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    className="flex-1 text-xs h-8 md:h-10"
-                    onClick={() => handleDownloadImage(selectedImage.url, selectedImage.prompt)}
-                  >
-                    <Download className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
-                    Download
-                  </Button>
-                </div>
-              </div>
-              
-              {/* Right side - Details */}
-              <div className="space-y-4 md:space-y-6 text-sm">
-                <div className="space-y-1 md:space-y-2">
-                  <h3 className="font-medium text-sm md:text-base">Prompt</h3>
-                  <p className="text-xs md:text-sm border rounded-md p-2 md:p-3 bg-muted/50">{selectedImage.prompt}</p>
-                </div>
-                
-                {selectedImage.reference_images && selectedImage.reference_images.length > 0 && (
-                  <div className="space-y-2 md:space-y-3">
-                    <h3 className="font-medium text-sm md:text-base">Reference Images</h3>
-                    <div className="grid grid-cols-2 gap-2">
-                      {selectedImage.reference_images.map((refImage) => {
-                        return (
-                          <div key={refImage.id} className="aspect-square border rounded-md overflow-hidden">
-                            <img 
-                              src={getTransformedImageUrl(refImage.url, {
-                                width: 200,
-                                height: 200,
-                                format: 'webp',
-                                quality: 80
-                              })}
-                              alt="Reference"
-                              className="object-cover w-full h-full"
-                              loading="lazy"
-                              decoding="async"
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
+            {/* Scrollable content area */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 py-2 md:py-4">
+                {/* Left side - Image */}
+                <div className="space-y-3 md:space-y-4">
+                  <div className="rounded-lg overflow-hidden">
+                    <img 
+                      src={getTransformedImageUrl(selectedImage.url, { width: 800, format: 'webp' })}
+                      alt={selectedImage.prompt}
+                      className="object-contain w-full h-full"
+                      loading="lazy"
+                      decoding="async"
+                    />
                   </div>
-                )}
+                  <div className="flex gap-2">
+                    <Button 
+                      className="flex-1 text-xs h-8 md:h-10"
+                      onClick={() => handleDownloadImage(selectedImage.url, selectedImage.prompt)}
+                    >
+                      <Download className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                      Download
+                    </Button>
+                  </div>
+                </div>
                 
-                <div className="space-y-1 md:space-y-2">
-                  <h3 className="font-medium text-sm md:text-base">Created</h3>
-                  <p className="text-xs md:text-sm">
-                    {new Date(selectedImage.created_at).toLocaleString()}
-                  </p>
+                {/* Right side - Details */}
+                <div className="space-y-4 md:space-y-6 text-sm">
+                  <div className="space-y-1 md:space-y-2">
+                    <h3 className="font-medium text-sm md:text-base">Prompt</h3>
+                    <p className="text-xs md:text-sm border rounded-md p-2 md:p-3 bg-muted/50">{selectedImage.prompt}</p>
+                  </div>
+                  
+                  {selectedImage.reference_images && selectedImage.reference_images.length > 0 && (
+                    <div className="space-y-2 md:space-y-3">
+                      <h3 className="font-medium text-sm md:text-base">Reference Images</h3>
+                      <div className="grid grid-cols-2 gap-2">
+                        {selectedImage.reference_images.map((refImage) => {
+                          return (
+                            <div key={refImage.id} className="aspect-square border rounded-md overflow-hidden">
+                              <img 
+                                src={getTransformedImageUrl(refImage.url, {
+                                  width: 200,
+                                  height: 200,
+                                  format: 'webp',
+                                  quality: 80
+                                })}
+                                alt="Reference"
+                                className="object-cover w-full h-full"
+                                loading="lazy"
+                                decoding="async"
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-1 md:space-y-2">
+                    <h3 className="font-medium text-sm md:text-base">Created</h3>
+                    <p className="text-xs md:text-sm">
+                      {new Date(selectedImage.created_at).toLocaleString()}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
             
-            <DialogFooter className="flex items-center justify-between sm:justify-between mt-2 md:mt-4 gap-2">
-              <Button 
-                variant="destructive" 
-                size="sm"
-                className="h-8 text-xs md:text-sm"
-                onClick={() => confirmDelete(selectedImage)}
-              >
-                <Trash2 className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
-                Delete Image
-              </Button>
-              
-              <DialogClose asChild>
-                <Button variant="outline" size="sm" className="h-8 text-xs md:text-sm">
-                  Close
+            {/* Sticky Footer */}
+            <div className="sticky bottom-0 z-10 bg-background px-4 py-4 border-t mt-auto">
+              <div className="flex items-center justify-between sm:justify-between gap-2">
+                <Button 
+                  variant="destructive" 
+                  size="sm"
+                  className="h-8 text-xs md:text-sm"
+                  onClick={() => confirmDelete(selectedImage)}
+                >
+                  <Trash2 className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                  Delete Image
                 </Button>
-              </DialogClose>
-            </DialogFooter>
+                
+                <DialogClose asChild>
+                  <Button variant="outline" size="sm" className="h-8 text-xs md:text-sm">
+                    Close
+                  </Button>
+                </DialogClose>
+              </div>
+            </div>
           </DialogContent>
         )}
       </Dialog>
