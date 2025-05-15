@@ -434,35 +434,88 @@ export function LibraryView({ onLibraryUpdated }: LibraryViewProps) {
       {/* Image Viewer Dialog */}
       <Dialog open={isImageViewerOpen} onOpenChange={setIsImageViewerOpen}>
         {selectedImage && (
-          <DialogContent className="max-w-md md:max-w-4xl sm:max-w-[60%] p-4 md:p-6">
-            <DialogHeader>
-              <DialogTitle className="text-base md:text-xl">Image Details</DialogTitle>
-              <DialogDescription className="text-xs md:text-sm">
-                View and manage your library image
-              </DialogDescription>
-            </DialogHeader>
+          <DialogContent className="max-w-md md:max-w-4xl sm:max-w-[60%] p-0 flex flex-col max-h-[90vh] overflow-hidden">
+            {/* Sticky Header */}
+            <div className="sticky top-0 z-10 bg-background px-4 pt-4 pb-2 border-b">
+              <DialogHeader>
+                <DialogTitle className="text-base md:text-xl">Image Details</DialogTitle>
+                <DialogDescription className="text-xs md:text-sm">
+                  View and manage your library image
+                </DialogDescription>
+              </DialogHeader>
+            </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 py-2 md:py-4">
-              {/* Left side - Image */}
-              <div className="space-y-3 md:space-y-4">
-                <div className="rounded-lg overflow-hidden bg-neutral-50 dark:bg-neutral-900 border">
-                  <div className="relative aspect-square">
-                    <img 
-                      src={getTransformedImageUrl(selectedImage.url, {
-                        width: 600,
-                        quality: 90,
-                        format: 'webp'
-                      })}
-                      alt={selectedImage.filename || "Library image"}
-                      className="object-contain w-full h-full"
-                      loading="lazy"
-                    />
+            {/* Scrollable Content Area */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 py-2 md:py-4">
+                {/* Left side - Image */}
+                <div className="space-y-3 md:space-y-4">
+                  <div className="rounded-lg overflow-hidden bg-neutral-50 dark:bg-neutral-900 border">
+                    <div className="relative aspect-square">
+                      <img 
+                        src={getTransformedImageUrl(selectedImage.url, {
+                          width: 600,
+                          quality: 90,
+                          format: 'webp'
+                        })}
+                        alt={selectedImage.filename || "Library image"}
+                        className="object-contain w-full h-full"
+                        loading="lazy"
+                      />
+                    </div>
                   </div>
                 </div>
                 
+                {/* Right side - Details */}
+                <div className="space-y-4 md:space-y-6">
+                  <div className="space-y-2">
+                    <h3 className="font-medium text-sm md:text-lg">Image Information</h3>
+                    <div className="border rounded-md p-3 md:p-4 space-y-2 md:space-y-3 text-xs md:text-sm">
+                      {selectedImage.filename && (
+                        <div>
+                          <h4 className="text-xs md:text-sm font-medium text-muted-foreground">Filename</h4>
+                          <p className="text-xs md:text-sm break-all">{selectedImage.filename}</p>
+                        </div>
+                      )}
+                      
+                      <div>
+                        <h4 className="text-xs md:text-sm font-medium text-muted-foreground">Type</h4>
+                        <p className="text-xs md:text-sm">{selectedImage.content_type || "Image"}</p>
+                      </div>
+                      
+                      <div>
+                        <h4 className="text-xs md:text-sm font-medium text-muted-foreground">Uploaded</h4>
+                        <p className="text-xs md:text-sm">
+                          {new Date(selectedImage.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <h4 className="text-xs md:text-sm font-medium text-muted-foreground">Size</h4>
+                        <p className="text-xs md:text-sm">
+                          {selectedImage.size ? `${(selectedImage.size / 1024 / 1024).toFixed(2)} MB` : "Unknown"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2 hidden md:block">
+                    <h3 className="font-medium text-sm md:text-lg">Usage</h3>
+                    <p className="text-xs md:text-sm text-muted-foreground">
+                      This image can be used as a reference for AI-generated content.
+                      Download it to use in your image generation workflow or keep it in your library for future use.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Sticky Footer */}
+            <div className="sticky bottom-0 z-10 bg-background px-4 py-4 border-t">
+              <div className="flex gap-2 justify-between">
                 <div className="flex gap-2">
                   <Button 
-                    className="flex-1 gap-1 h-8 md:h-10 text-xs md:text-sm"
+                    className="gap-1 h-8 md:h-10 text-xs md:text-sm"
                     onClick={() => handleDownloadImage(selectedImage)}
                   >
                     <Download className="h-3 w-3 md:h-4 md:w-4 mr-1" />
@@ -471,65 +524,21 @@ export function LibraryView({ onLibraryUpdated }: LibraryViewProps) {
                   
                   <Button 
                     variant="destructive" 
-                    className="flex-1 gap-1 h-8 md:h-10 text-xs md:text-sm"
+                    className="gap-1 h-8 md:h-10 text-xs md:text-sm"
                     onClick={() => confirmDelete(selectedImage)}
                   >
                     <Trash2 className="h-3 w-3 md:h-4 md:w-4 mr-1" />
                     Delete
                   </Button>
                 </div>
-              </div>
-              
-              {/* Right side - Details */}
-              <div className="space-y-4 md:space-y-6">
-                <div className="space-y-2">
-                  <h3 className="font-medium text-sm md:text-lg">Image Information</h3>
-                  <div className="border rounded-md p-3 md:p-4 space-y-2 md:space-y-3 text-xs md:text-sm">
-                    {selectedImage.filename && (
-                      <div>
-                        <h4 className="text-xs md:text-sm font-medium text-muted-foreground">Filename</h4>
-                        <p className="text-xs md:text-sm break-all">{selectedImage.filename}</p>
-                      </div>
-                    )}
-                    
-                    <div>
-                      <h4 className="text-xs md:text-sm font-medium text-muted-foreground">Type</h4>
-                      <p className="text-xs md:text-sm">{selectedImage.content_type || "Image"}</p>
-                    </div>
-                    
-                    <div>
-                      <h4 className="text-xs md:text-sm font-medium text-muted-foreground">Uploaded</h4>
-                      <p className="text-xs md:text-sm">
-                        {new Date(selectedImage.created_at).toLocaleString()}
-                      </p>
-                    </div>
-                    
-                    <div>
-                      <h4 className="text-xs md:text-sm font-medium text-muted-foreground">Size</h4>
-                      <p className="text-xs md:text-sm">
-                        {selectedImage.size ? `${(selectedImage.size / 1024 / 1024).toFixed(2)} MB` : "Unknown"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
                 
-                <div className="space-y-2 hidden md:block">
-                  <h3 className="font-medium text-sm md:text-lg">Usage</h3>
-                  <p className="text-xs md:text-sm text-muted-foreground">
-                    This image can be used as a reference for AI-generated content.
-                    Download it to use in your image generation workflow or keep it in your library for future use.
-                  </p>
-                </div>
+                <DialogClose asChild>
+                  <Button variant="outline" size="sm" className="h-8 md:h-10 text-xs md:text-sm">
+                    Close
+                  </Button>
+                </DialogClose>
               </div>
             </div>
-            
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button variant="outline" size="sm" className="h-8 md:h-10 text-xs md:text-sm">
-                  Close
-                </Button>
-              </DialogClose>
-            </DialogFooter>
           </DialogContent>
         )}
       </Dialog>

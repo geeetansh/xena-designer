@@ -91,170 +91,179 @@ export function ProductImagesModal({ product, open, onOpenChange }: ProductImage
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md md:max-w-5xl sm:max-w-[60%] p-4 md:p-6">
-        <DialogHeader>
-          <DialogTitle className="text-base md:text-xl line-clamp-1">
-            {product.title}
-          </DialogTitle>
-          <DialogDescription className="text-xs md:text-sm">
-            Product images from your Shopify store
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-w-md md:max-w-5xl sm:max-w-[60%] p-0 overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Sticky Header */}
+        <div className="sticky top-0 z-10 bg-background px-4 pt-4 pb-2 border-b">
+          <DialogHeader>
+            <DialogTitle className="text-base md:text-xl line-clamp-1">
+              {product.title}
+            </DialogTitle>
+            <DialogDescription className="text-xs md:text-sm">
+              Product images from your Shopify store
+            </DialogDescription>
+          </DialogHeader>
+        </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 py-2 md:py-4">
-          {/* Left side - Image */}
-          <div className="space-y-3 md:space-y-4">
-            {images.length > 0 ? (
-              <>
-                <div className="relative rounded-lg overflow-hidden bg-neutral-50 dark:bg-neutral-900 border">
-                  <div className="aspect-square">
-                    <img 
-                      src={getTransformedImageUrl(images[selectedImageIndex].url, {
-                        width: 800,
-                        format: 'webp',
-                        quality: 90
-                      })} 
-                      alt={images[selectedImageIndex].altText || `Product image ${selectedImageIndex + 1}`}
-                      className="object-contain w-full h-full"
-                      loading="lazy"
-                    />
-                  </div>
-                  
-                  {/* Image navigation buttons */}
-                  {images.length > 1 && (
-                    <>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="absolute left-1 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm hover:bg-background/90 h-7 w-7 md:h-10 md:w-10"
-                        onClick={handlePrevImage}
-                      >
-                        <ChevronLeft className="h-4 w-4 md:h-6 md:w-6" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="absolute right-1 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm hover:bg-background/90 h-7 w-7 md:h-10 md:w-10"
-                        onClick={handleNextImage}
-                      >
-                        <ChevronRight className="h-4 w-4 md:h-6 md:w-6" />
-                      </Button>
-                    </>
-                  )}
-                  
-                  {/* Image counter */}
-                  <div className="absolute bottom-2 right-2 bg-background/80 backdrop-blur-sm text-foreground rounded-full px-2 py-0.5 text-xs font-medium">
-                    {selectedImageIndex + 1} / {images.length}
-                  </div>
-                </div>
-                
-                <div className="flex flex-wrap gap-2">
-                  <Button 
-                    className="flex-1 gap-1 h-8 md:h-10 text-xs md:text-sm"
-                    onClick={handleDownload}
-                    disabled={downloading}
-                  >
-                    {downloading ? (
-                      <Loader2 className="h-3 w-3 md:h-4 md:w-4 animate-spin mr-1 md:mr-2" />
-                    ) : (
-                      <Download className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
-                    )}
-                    Download Image
-                  </Button>
-                  
-                  <Button 
-                    variant="outline" 
-                    className="flex-1 gap-1 h-8 md:h-10 text-xs md:text-sm"
-                    onClick={() => window.open(getStoreProductUrl(product.handle), '_blank')}
-                  >
-                    <ExternalLink className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
-                    View in Store
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <div className="flex items-center justify-center py-8 text-center border rounded-lg">
-                <div className="space-y-3">
-                  <ImageIcon className="h-8 w-8 md:h-12 md:w-12 text-muted-foreground mx-auto" />
-                  <p className="text-xs md:text-sm text-muted-foreground">No images available for this product</p>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {/* Right side - Details */}
-          <div className="space-y-4 md:space-y-6">
-            <div className="space-y-2">
-              <h3 className="font-medium text-sm md:text-lg">Product Details</h3>
-              <div className="border rounded-md p-3 md:p-4 space-y-2 md:space-y-3 text-xs md:text-sm">
-                <div>
-                  <h4 className="text-xs md:text-sm font-medium text-muted-foreground">Product Name</h4>
-                  <p className="text-sm md:text-base">{product.title}</p>
-                </div>
-                
-                {product.variants.edges.length > 0 && (
-                  <div>
-                    <h4 className="text-xs md:text-sm font-medium text-muted-foreground">Price</h4>
-                    <p className="text-sm md:text-base font-medium">
-                      {new Intl.NumberFormat('en-US', {
-                        style: 'currency',
-                        currency: product.variants.edges[0].node.price.currencyCode,
-                      }).format(parseFloat(product.variants.edges[0].node.price.amount))}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {/* Thumbnails section */}
-            {images.length > 1 && (
-              <div className="space-y-2">
-                <h3 className="font-medium text-sm md:text-lg">Available Images</h3>
-                <div className="grid grid-cols-4 sm:grid-cols-4 gap-1 md:gap-2">
-                  {images.map((image, index) => (
-                    <div 
-                      key={index}
-                      className={`
-                        cursor-pointer rounded-md overflow-hidden aspect-square border-2
-                        ${selectedImageIndex === index ? 'border-primary' : 'border-transparent'}
-                      `}
-                      onClick={() => setSelectedImageIndex(index)}
-                    >
+        {/* Scrollable Content Area */}
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 py-2 md:py-4">
+            {/* Left side - Image */}
+            <div className="space-y-3 md:space-y-4">
+              {images.length > 0 ? (
+                <>
+                  <div className="relative rounded-lg overflow-hidden bg-neutral-50 dark:bg-neutral-900 border">
+                    <div className="aspect-square">
                       <img 
-                        src={getTransformedImageUrl(image.url, {
-                          width: 150,
-                          height: 150,
+                        src={getTransformedImageUrl(images[selectedImageIndex].url, {
+                          width: 800,
                           format: 'webp',
-                          quality: 80,
-                          resize: 'cover'
+                          quality: 90
                         })} 
-                        alt={image.altText || `Thumbnail ${index + 1}`}
-                        className="object-cover w-full h-full"
+                        alt={images[selectedImageIndex].altText || `Product image ${selectedImageIndex + 1}`}
+                        className="object-contain w-full h-full"
                         loading="lazy"
                       />
                     </div>
-                  ))}
+                    
+                    {/* Image navigation buttons */}
+                    {images.length > 1 && (
+                      <>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="absolute left-1 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm hover:bg-background/90 h-7 w-7 md:h-10 md:w-10"
+                          onClick={handlePrevImage}
+                        >
+                          <ChevronLeft className="h-4 w-4 md:h-6 md:w-6" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="absolute right-1 top-1/2 -translate-y-1/2 bg-background/80 backdrop-blur-sm hover:bg-background/90 h-7 w-7 md:h-10 md:w-10"
+                          onClick={handleNextImage}
+                        >
+                          <ChevronRight className="h-4 w-4 md:h-6 md:w-6" />
+                        </Button>
+                      </>
+                    )}
+                    
+                    {/* Image counter */}
+                    <div className="absolute bottom-2 right-2 bg-background/80 backdrop-blur-sm text-foreground rounded-full px-2 py-0.5 text-xs font-medium">
+                      {selectedImageIndex + 1} / {images.length}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-center py-8 text-center border rounded-lg">
+                  <div className="space-y-3">
+                    <ImageIcon className="h-8 w-8 md:h-12 md:w-12 text-muted-foreground mx-auto" />
+                    <p className="text-xs md:text-sm text-muted-foreground">No images available for this product</p>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Right side - Details */}
+            <div className="space-y-4 md:space-y-6">
+              <div className="space-y-2">
+                <h3 className="font-medium text-sm md:text-lg">Product Details</h3>
+                <div className="border rounded-md p-3 md:p-4 space-y-2 md:space-y-3 text-xs md:text-sm">
+                  <div>
+                    <h4 className="text-xs md:text-sm font-medium text-muted-foreground">Product Name</h4>
+                    <p className="text-sm md:text-base">{product.title}</p>
+                  </div>
+                  
+                  {product.variants.edges.length > 0 && (
+                    <div>
+                      <h4 className="text-xs md:text-sm font-medium text-muted-foreground">Price</h4>
+                      <p className="text-sm md:text-base font-medium">
+                        {new Intl.NumberFormat('en-US', {
+                          style: 'currency',
+                          currency: product.variants.edges[0].node.price.currencyCode,
+                        }).format(parseFloat(product.variants.edges[0].node.price.amount))}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
-            
-            <div className="space-y-2 hidden md:block">
-              <h3 className="font-medium text-sm md:text-lg">Usage</h3>
-              <p className="text-xs md:text-sm text-muted-foreground">
-                These product images can be used as reference images for AI-generated content.
-                Select an image above and download it to use in your image generation workflow.
-              </p>
+              
+              {/* Thumbnails section */}
+              {images.length > 1 && (
+                <div className="space-y-2">
+                  <h3 className="font-medium text-sm md:text-lg">Available Images</h3>
+                  <div className="grid grid-cols-4 sm:grid-cols-4 gap-1 md:gap-2">
+                    {images.map((image, index) => (
+                      <div 
+                        key={index}
+                        className={`
+                          cursor-pointer rounded-md overflow-hidden aspect-square border-2
+                          ${selectedImageIndex === index ? 'border-primary' : 'border-transparent'}
+                        `}
+                        onClick={() => setSelectedImageIndex(index)}
+                      >
+                        <img 
+                          src={getTransformedImageUrl(image.url, {
+                            width: 150,
+                            height: 150,
+                            format: 'webp',
+                            quality: 80,
+                            resize: 'cover'
+                          })} 
+                          alt={image.altText || `Thumbnail ${index + 1}`}
+                          className="object-cover w-full h-full"
+                          loading="lazy"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              <div className="space-y-2 hidden md:block">
+                <h3 className="font-medium text-sm md:text-lg">Usage</h3>
+                <p className="text-xs md:text-sm text-muted-foreground">
+                  These product images can be used as reference images for AI-generated content.
+                  Select an image above and download it to use in your image generation workflow.
+                </p>
+              </div>
             </div>
           </div>
         </div>
         
-        <DialogFooter className="flex justify-end">
-          <DialogClose asChild>
-            <Button variant="outline" size="sm" className="h-8 md:h-10 text-xs md:text-sm">
-              Close
-            </Button>
-          </DialogClose>
-        </DialogFooter>
+        {/* Sticky Footer */}
+        <div className="sticky bottom-0 z-10 bg-background px-4 py-4 border-t">
+          <div className="flex gap-2 md:gap-4 justify-between">
+            <div className="flex gap-2">
+              <Button 
+                className="gap-1 h-8 md:h-10 text-xs md:text-sm"
+                onClick={handleDownload}
+                disabled={downloading || images.length === 0}
+              >
+                {downloading ? (
+                  <Loader2 className="h-3 w-3 md:h-4 md:w-4 animate-spin mr-1 md:mr-2" />
+                ) : (
+                  <Download className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                )}
+                Download
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                className="gap-1 h-8 md:h-10 text-xs md:text-sm"
+                onClick={() => window.open(getStoreProductUrl(product.handle), '_blank')}
+              >
+                <ExternalLink className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                View in Store
+              </Button>
+            </div>
+            
+            <DialogClose asChild>
+              <Button variant="outline" size="sm" className="h-8 md:h-10 text-xs md:text-sm">
+                Close
+              </Button>
+            </DialogClose>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
