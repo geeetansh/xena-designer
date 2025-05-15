@@ -100,6 +100,13 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
     }
   };
 
+  // Helper function to convert URL to File
+  const urlToFile = async (url: string, filename: string = 'product.jpg'): Promise<File> => {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return new File([blob], filename, { type: blob.type || 'image/jpeg' });
+  };
+
   // Form submission handler
   const handleSubmit = async () => {
     try {
@@ -115,13 +122,42 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
         return;
       }
       
-      // Create automation session
-      const productFile = productImage;
-      const referenceAdFile = referenceAd;
+      // Process product image
+      let productImageFile = productImage;
       
+      // If we have a URL but no file, convert URL to File
+      if (!productImageFile && productImageUrl) {
+        try {
+          // Extract filename from URL to preserve file extension
+          const filename = productImageUrl.split('/').pop() || 'product.jpg';
+          productImageFile = await urlToFile(productImageUrl, filename);
+        } catch (error) {
+          console.error('Error converting product image URL to File:', error);
+          throw new Error("Failed to process product image. Please try uploading a different image.");
+        }
+      }
+      
+      // Additional validation to ensure we have a productImageFile
+      if (!productImageFile) {
+        throw new Error("Product image is required. Please select or upload an image.");
+      }
+      
+      // Process reference ad if it's a URL
+      let referenceAdFile = referenceAd;
+      if (!referenceAdFile && referenceAdUrl) {
+        try {
+          const filename = referenceAdUrl.split('/').pop() || 'reference.jpg';
+          referenceAdFile = await urlToFile(referenceAdUrl, filename);
+        } catch (error) {
+          console.error('Error converting reference ad URL to File:', error);
+          // We can continue without reference ad
+        }
+      }
+      
+      // Create automation session
       const sessionId = await createAutomationSession(
-        productFile!,
-        null,
+        productImageFile,
+        null, // No brand logo for now
         referenceAdFile,
         "", // No instructions for now
         parseInt(variationCount, 10)
@@ -136,6 +172,7 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
         created_at: new Date().toISOString(),
       });
       
+      // Show success toast
       toast({
         title: "Campaign started",
         description: "Your ad campaign is being generated.",
@@ -149,16 +186,11 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
         onSuccess(sessionId);
       }
       
-      // Navigate to the automate page
+      // Navigate to the static ads page (/automate)
       navigate('/automate');
       
-      // Start the progress tracking
-      setProgress(10);
-      
-      // Close the modal after a short delay to show some progress
-      setTimeout(() => {
-        onOpenChange(false);
-      }, 1500);
+      // Close the modal
+      onOpenChange(false);
       
     } catch (error) {
       console.error('Error creating session:', error);

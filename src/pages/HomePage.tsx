@@ -11,6 +11,7 @@ import {
 } from "react-icons/fa6";
 import { GalleryVerticalEnd as LuGalleryVerticalEnd } from "lucide-react";
 import { TbPhotoSquareRounded, TbCoins } from "react-icons/tb";
+import { FaBullhorn } from "react-icons/fa6";
 
 export default function HomePage() {
   const [userProfile, setUserProfile] = useState<{
@@ -121,20 +122,20 @@ export default function HomePage() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs md:text-sm font-medium text-muted-foreground">Generate Now</p>
-                <h3 className="text-lg md:text-2xl font-bold mt-1">Create Assets</h3>
+                <h3 className="text-lg md:text-2xl font-bold mt-1">Create Static Ads</h3>
               </div>
               <div className="bg-primary/10 p-1.5 md:p-2 rounded-full">
-                <TbPhotoSquareRounded className="h-4 w-4 md:h-5 md:w-5 text-primary" />
+                <FaBullhorn className="h-4 w-4 md:h-5 md:w-5 text-primary" />
               </div>
             </div>
             <p className="text-xs md:text-sm text-muted-foreground mt-1 md:mt-2 mb-2 md:mb-4 line-clamp-2">
-              Turn product images into professional creatives
+              Create automated ads for your products with AI
             </p>
             <div className="mt-auto">
               <Button 
                 variant="default" 
                 className="w-full text-xs md:text-sm h-8 md:h-10" 
-                onClick={() => navigate('/new-asset')}
+                onClick={() => navigate('/automation-builder')}
               >
                 Start creating
               </Button>
@@ -145,18 +146,18 @@ export default function HomePage() {
           <div className="bg-card rounded-lg border shadow-sm p-3 md:p-6">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs md:text-sm font-medium text-muted-foreground">Images Created</p>
-                <h3 className="text-lg md:text-2xl font-bold mt-1">{imageCount}</h3>
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">Library</p>
+                <h3 className="text-lg md:text-2xl font-bold mt-1">{libraryCount}</h3>
               </div>
               <div className="bg-primary/10 p-1.5 md:p-2 rounded-full">
                 <LuGalleryVerticalEnd className="h-4 w-4 md:h-5 md:w-5 text-primary" />
               </div>
             </div>
             <p className="text-xs md:text-sm text-muted-foreground mt-1 md:mt-2 mb-2 md:mb-4 line-clamp-2">
-              View and manage your generated creatives
+              View and manage your uploaded reference images
             </p>
             <div className="mt-auto">
-              <Link to="/gallery">
+              <Link to="/library">
                 <Button 
                   variant="outline" 
                   className="w-full text-xs md:text-sm h-8 md:h-10"
@@ -247,7 +248,7 @@ export default function HomePage() {
               <Button
                 size="sm"
                 className="h-8 md:h-10 text-xs md:text-sm"
-                onClick={() => navigate('/new-asset')}
+                onClick={() => navigate('/automation-builder')}
               >
                 Start Creating
               </Button>
