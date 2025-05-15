@@ -419,22 +419,22 @@ export default function NewAssetPage() {
               )}
               onClick={() => handleAssetTypeSelect('photoshoot')}
             >
-              <CardContent className="p-2 md:p-6">
+              <CardContent className="p-1 md:p-6">
                 <div className="flex flex-col">
-                  <div className="aspect-video overflow-hidden rounded-lg mb-2 md:mb-4 relative">
+                  <div className="aspect-video overflow-hidden rounded-lg mb-1 md:mb-4 relative">
                     <LazyImage 
                       src="https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6823e3040af5498347113989_1.jpg"
                       alt="Photoshoots"
                       className="w-full h-full object-cover"
                     />
                     {assetType === 'photoshoot' && (
-                      <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full h-6 w-6 flex items-center justify-center">
-                        <Check className="h-4 w-4" />
+                      <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full h-4 w-4 md:h-6 md:w-6 flex items-center justify-center">
+                        <Check className="h-2.5 w-2.5 md:h-4 md:w-4" />
                       </div>
                     )}
                   </div>
-                  <h3 className="text-base md:text-xl font-medium">Photoshoots</h3>
-                  <p className="text-xs md:text-sm text-muted-foreground mt-1 md:mt-2">
+                  <h3 className="text-xs md:text-xl font-medium">Photoshoots</h3>
+                  <p className="text-[10px] md:text-sm text-muted-foreground mt-0.5 md:mt-2">
                     Generate exceptionally looking photoshoots for your products in different settings and moods.
                   </p>
                 </div>
@@ -448,22 +448,22 @@ export default function NewAssetPage() {
               )}
               onClick={() => handleAssetTypeSelect('static_ad')}
             >
-              <CardContent className="p-2 md:p-6">
+              <CardContent className="p-1 md:p-6">
                 <div className="flex flex-col">
-                  <div className="aspect-video overflow-hidden rounded-lg mb-2 md:mb-4 relative">
+                  <div className="aspect-video overflow-hidden rounded-lg mb-1 md:mb-4 relative">
                     <LazyImage 
-                      src="https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6823e3040af5498347113989_1.jpg"
+                      src="https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6823e3041d38f858afdae334_2.jpg"
                       alt="Social Ads"
                       className="w-full h-full object-cover"
                     />
                     {assetType === 'static_ad' && (
-                      <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full h-6 w-6 flex items-center justify-center">
-                        <Check className="h-4 w-4" />
+                      <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full h-4 w-4 md:h-6 md:w-6 flex items-center justify-center">
+                        <Check className="h-2.5 w-2.5 md:h-4 md:w-4" />
                       </div>
                     )}
                   </div>
-                  <h3 className="text-base md:text-xl font-medium">Static ads</h3>
-                  <p className="text-xs md:text-sm text-muted-foreground mt-1 md:mt-2">
+                  <h3 className="text-xs md:text-xl font-medium">Static ads</h3>
+                  <p className="text-[10px] md:text-sm text-muted-foreground mt-0.5 md:mt-2">
                     Generate static ads for your next campaign in vertical, horizontal and square formats!
                   </p>
                 </div>
