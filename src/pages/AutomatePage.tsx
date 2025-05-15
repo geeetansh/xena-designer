@@ -9,6 +9,15 @@ import {
   CardContent
 } from '@/components/ui/card';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -17,7 +26,8 @@ import {
 } from "@/components/ui/select";
 import { createAutomationSession, generatePrompts } from '@/services/automationService';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Image as ImageIcon } from 'lucide-react';
+import { Loader2, Image as ImageIcon, Eye, Download, AlertTriangle, Calendar } from 'lucide-react';
+import { format } from 'date-fns';
 
 interface Session {
   id: string;
@@ -44,6 +54,7 @@ interface GenerationJob {
   image_url?: string;
   status: string;
   error_message?: string;
+  created_at: string;
 }
 
 export default function AutomatePage() {
@@ -55,7 +66,10 @@ export default function AutomatePage() {
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [promptVariations, setPromptVariations] = useState<PromptVariation[]>([]);
   const [generationJobs, setGenerationJobs] = useState<GenerationJob[]>([]);
+  const [selectedJob, setSelectedJob] = useState<GenerationJob | null>(null);
+  const [isJobDetailsOpen, setIsJobDetailsOpen] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
   const latestJobsRef = useRef<GenerationJob[]>([]);
   
   const { toast } = useToast();
@@ -143,7 +157,9 @@ export default function AutomatePage() {
 
   // Fetch latest jobs automatically
   useEffect(() => {
-    fetchLatestJobs();
+    setIsLoading(true);
+    fetchLatestJobs()
+      .finally(() => setIsLoading(false));
     
     // Set up interval to fetch latest jobs every 10 seconds
     const interval = setInterval(() => {
@@ -157,9 +173,20 @@ export default function AutomatePage() {
     try {
       const { data, error } = await supabase
         .from('generation_jobs')
-        .select('*, prompt_variations!inner(session_id, index)')
+        .select(`
+          *,
+          prompt_variations!inner(
+            session_id,
+            index,
+            automation_sessions(
+              product_image_url,
+              reference_ad_url,
+              created_at
+            )
+          )
+        `)
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(20);
         
       if (error) {
         console.error('Error fetching latest jobs:', error);
@@ -294,6 +321,38 @@ export default function AutomatePage() {
     }
   };
 
+  const handleViewDetails = (job: GenerationJob) => {
+    setSelectedJob(job);
+    setIsJobDetailsOpen(true);
+  };
+
+  const handleDownloadImage = async (imageUrl: string, prompt: string) => {
+    try {
+      // Always download the original image, not the optimized version
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `xena-ad-${prompt.substring(0, 20).replace(/[^a-z0-9]/gi, '-').toLowerCase()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Image downloaded",
+        description: "The ad image has been downloaded successfully"
+      });
+    } catch (error) {
+      console.error('Error downloading image:', error);
+      toast({
+        title: "Download failed",
+        description: "Failed to download the image",
+        variant: "destructive"
+      });
+    }
+  };
+
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:
@@ -349,7 +408,7 @@ export default function AutomatePage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto w-full py-4 md:py-8">
+    <div className="max-w-6xl mx-auto w-full py-4 md:py-8">
       <div className="space-y-6">
         {/* Step banner */}
         <div className="bg-gradient-to-r from-background/80 to-background/40 rounded-lg p-4 border shadow-sm">
@@ -401,65 +460,232 @@ export default function AutomatePage() {
           </div>
         </div>
 
+        {/* Progress indicator for current session */}
+        {currentSession && progress > 0 && (
+          <div className="mb-4 p-4 bg-muted/30 rounded-lg border">
+            <div className="flex items-center justify-between text-sm mb-2">
+              <span>
+                {progress < 50 ? 'Generating prompts...' : 
+                progress < 100 ? 'Creating ads...' : 
+                'All ads completed!'}
+              </span>
+              <span>{Math.round(progress)}%</span>
+            </div>
+            <Progress value={progress} className="h-2" />
+          </div>
+        )}
+
         {/* Gallery view of generation jobs */}
         <div>
           <h2 className="text-lg font-medium mb-4">Generated Ads</h2>
           
-          {currentSession && progress > 0 && (
-            <div className="mb-4 p-4 bg-muted/30 rounded-lg border">
-              <div className="flex items-center justify-between text-sm mb-2">
-                <span>
-                  {progress < 50 ? 'Generating prompts...' : 
-                  progress < 100 ? 'Creating ads...' : 
-                  'All ads completed!'}
-                </span>
-                <span>{Math.round(progress)}%</span>
-              </div>
-              <Progress value={progress} className="h-2" />
+          {isLoading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="aspect-square rounded-lg bg-muted animate-pulse" />
+              ))}
             </div>
-          )}
-
-          {generationJobs.length === 0 ? (
+          ) : generationJobs.length === 0 ? (
             <div className="text-center py-12 bg-muted/20 rounded-lg border">
               <ImageIcon className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
               <p className="text-muted-foreground">No generated ads yet</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {generationJobs.map((job) => (
-                <Card key={job.id} className="overflow-hidden">
-                  <CardContent className="p-2">
-                    <div className="aspect-square w-full h-auto bg-muted/30 rounded overflow-hidden relative">
-                      {job.status === 'failed' ? (
-                        <img 
-                          src="https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/68100a4d9b154c0a40484bd8_ChatGPT%20Image%20Apr%2029%2C%202025%2C%2004_37_51%20AM.png"
-                          alt="Failed generation"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : job.status === 'completed' && job.image_url ? (
-                        <LazyImage
-                          src={job.image_url}
-                          alt="Generated ad"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <div className="animate-pulse flex flex-col items-center">
-                            <Loader2 className="h-8 w-8 text-muted-foreground animate-spin" />
-                            <span className="mt-2 text-xs text-muted-foreground">
-                              {job.status}
-                            </span>
-                          </div>
+                <div 
+                  key={job.id}
+                  className="relative group overflow-hidden rounded-lg shadow-sm transition-all duration-200 hover:shadow-md"
+                >
+                  <div className="aspect-square w-full h-full bg-background">
+                    {job.status === 'failed' ? (
+                      <img 
+                        src="https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/68100a4d9b154c0a40484bd8_ChatGPT%20Image%20Apr%2029%2C%202025%2C%2004_37_51%20AM.png"
+                        alt="Failed generation"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : job.status === 'completed' && job.image_url ? (
+                      <LazyImage
+                        src={job.image_url}
+                        alt="Generated ad"
+                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-muted/30">
+                        <div className="animate-pulse flex flex-col items-center">
+                          <Loader2 className="h-8 w-8 text-muted-foreground animate-spin" />
+                          <span className="mt-2 text-xs text-muted-foreground">
+                            {job.status}
+                          </span>
                         </div>
-                      )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end">
+                    <div className="p-3 md:p-4 space-y-1">
+                      <h3 className="text-white font-medium text-xs md:text-sm line-clamp-1">
+                        Generated Ad
+                      </h3>
+                      <p className="text-white/80 text-[10px] md:text-xs">
+                        {job.created_at ? format(new Date(job.created_at), 'MMM d, yyyy') : ''}
+                      </p>
+                      <div className="flex justify-between mt-1 md:mt-2">
+                        <Button 
+                          size="sm" 
+                          variant="secondary"
+                          className="rounded-full shadow-lg text-xs h-7 px-2 md:h-8 md:px-3"
+                          onClick={() => handleViewDetails(job)}
+                        >
+                          <Eye className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                          View
+                        </Button>
+                        
+                        <Button 
+                          size="sm" 
+                          variant="secondary"
+                          className="rounded-full shadow-lg h-7 w-7 p-0 md:h-8 md:w-8"
+                          onClick={() => job.image_url && handleDownloadImage(job.image_url, job.prompt.substring(0, 30))}
+                          disabled={!job.image_url || job.status !== 'completed'}
+                        >
+                          <Download className="h-3 w-3 md:h-4 md:w-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               ))}
             </div>
           )}
         </div>
       </div>
+
+      {/* Image Details Dialog */}
+      <Dialog open={isJobDetailsOpen} onOpenChange={setIsJobDetailsOpen}>
+        {selectedJob && (
+          <DialogContent className="max-w-4xl md:max-w-5xl sm:max-w-[80%] p-0 overflow-hidden flex flex-col max-h-[90vh]">
+            <DialogHeader className="px-4 pt-4">
+              <DialogTitle className="text-xl">Ad Details</DialogTitle>
+              <DialogDescription>
+                View your generated ad and reference images
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Left side - Generated Image */}
+                <div className="space-y-4">
+                  <h3 className="font-medium">Generated Ad</h3>
+                  <div className="aspect-square rounded-lg overflow-hidden border bg-muted/30">
+                    {selectedJob.status === 'failed' ? (
+                      <div className="h-full w-full flex flex-col items-center justify-center p-6 text-center">
+                        <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
+                        <p className="text-sm font-medium">Generation failed</p>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          {selectedJob.error_message || "The ad could not be generated"}
+                        </p>
+                      </div>
+                    ) : selectedJob.status === 'completed' && selectedJob.image_url ? (
+                      <img
+                        src={selectedJob.image_url}
+                        alt="Generated ad"
+                        className="h-full w-full object-contain"
+                      />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center">
+                        <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Download button */}
+                  {selectedJob.status === 'completed' && selectedJob.image_url && (
+                    <Button 
+                      onClick={() => handleDownloadImage(selectedJob.image_url!, selectedJob.prompt.substring(0, 30))}
+                      className="w-full"
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Download Image
+                    </Button>
+                  )}
+                </div>
+                
+                {/* Right side - Details */}
+                <div className="space-y-4">
+                  {/* Prompt */}
+                  <div className="space-y-2">
+                    <h3 className="font-medium">Prompt</h3>
+                    <div className="p-4 border rounded-lg bg-muted/30 text-sm">
+                      <p>{selectedJob.prompt}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Reference Images */}
+                  {selectedJob.prompt_variations && (
+                    <div className="space-y-2">
+                      <h3 className="font-medium">Reference Images</h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        {/* Product Image */}
+                        {selectedJob.prompt_variations.automation_sessions?.product_image_url && (
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">Product Image</p>
+                            <div className="aspect-square border rounded-md overflow-hidden">
+                              <LazyImage
+                                src={selectedJob.prompt_variations.automation_sessions.product_image_url}
+                                alt="Product"
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Reference Ad */}
+                        {selectedJob.prompt_variations.automation_sessions?.reference_ad_url && (
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">Reference Ad</p>
+                            <div className="aspect-square border rounded-md overflow-hidden">
+                              <LazyImage
+                                src={selectedJob.prompt_variations.automation_sessions.reference_ad_url}
+                                alt="Reference"
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Created Date */}
+                  <div className="space-y-2">
+                    <h3 className="font-medium">Information</h3>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Created</p>
+                        <p className="flex items-center">
+                          <Calendar className="h-3.5 w-3.5 mr-1.5" />
+                          {selectedJob.created_at ? 
+                            format(new Date(selectedJob.created_at), 'MMM d, yyyy HH:mm:ss') : 
+                            'Unknown date'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Status</p>
+                        <p className="capitalize">{selectedJob.status}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <DialogFooter className="px-4 py-3 border-t">
+              <DialogClose asChild>
+                <Button variant="outline">Close</Button>
+              </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 }
