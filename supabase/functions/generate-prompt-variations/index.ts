@@ -129,10 +129,7 @@ Format your response as a valid JSON with a "prompts" field containing an array 
       messages: [
         { role: "system", content: systemMessage },
         { role: "user", content: userMessageContent }
-      ],
-      temperature: 0.7,
-      max_tokens: 1500,
-      strict: true
+      ]
     });
     
     console.log("OpenAI response received");
