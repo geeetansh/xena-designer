@@ -122,12 +122,12 @@ Format your response as a JSON array of strings, each string being a complete pr
 
     // Call ChatGPT to generate prompts
     const chatResponse = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4-mini",
       messages: [
         { role: "system", content: systemMessage },
         { role: "user", content: userMessageContent }
       ],
-      response_format: { type: "json_object" }
+      strict: true
     });
 
     // Extract the response content
