@@ -1,4 +1,4 @@
-import OpenAI from "npm:openai@4.36.0";
+import OpenAI from "npm:openai@4.98.0";
 import { createClient } from "npm:@supabase/supabase-js@2.39.8";
 
 const corsHeaders = {
@@ -253,7 +253,7 @@ Deno.serve(async (req: Request) => {
         console.error(`Error checking/creating bucket:`, error);
       }
       
-      // Upload to storage - FIXED: don't use .buffer on Uint8Array
+      // Upload to storage
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("automated")
         .upload(imagePath, binaryData, {

@@ -1,4 +1,4 @@
-import OpenAI from "npm:openai@4.36.0";
+import OpenAI from "npm:openai@4.98.0";
 import { createClient } from "npm:@supabase/supabase-js@2.39.8";
 
 const corsHeaders = {
@@ -123,24 +123,40 @@ Format your response as a valid JSON with a "prompts" field containing an array 
 \`\`\``;
 
     // Call ChatGPT to generate prompts
+    console.log("Calling OpenAI API with model: o4-mini");
     const chatResponse = await openai.chat.completions.create({
       model: "o4-mini",
       messages: [
         { role: "system", content: systemMessage },
         { role: "user", content: userMessageContent }
       ],
+      temperature: 0.7,
+      max_tokens: 1500,
       strict: true
     });
+    
+    console.log("OpenAI response received");
 
     // Extract the response content
     const responseContent = chatResponse.choices[0].message.content;
+    console.log(`Response content length: ${responseContent.length}`);
     
     // Save the raw response
+    let parsedResponse;
+    try {
+      parsedResponse = JSON.parse(responseContent);
+      console.log("Successfully parsed JSON response");
+    } catch (parseError) {
+      console.error("Failed to parse JSON response:", parseError);
+      console.log("Raw response:", responseContent);
+      throw new Error(`Failed to parse OpenAI response as JSON: ${parseError.message}`);
+    }
+    
     const { data: responseRecord, error: responseError } = await supabase
       .from('prompt_generation_responses')
       .insert({
         session_id: sessionId,
-        raw_response: JSON.parse(responseContent)
+        raw_response: parsedResponse
       })
       .select()
       .single();
@@ -156,12 +172,13 @@ Format your response as a valid JSON with a "prompts" field containing an array 
 
     // Parse the JSON response
     try {
-      const parsedResponse = JSON.parse(responseContent);
       const promptsArray = parsedResponse.prompts;
       
       if (!promptsArray || !Array.isArray(promptsArray)) {
         throw new Error(`Expected an array of prompts, got: ${JSON.stringify(parsedResponse)}`);
       }
+      
+      console.log(`Successfully extracted ${promptsArray.length} prompts from response`);
       
       // Insert the prompt variations
       const promptInserts = promptsArray.map((prompt, index) => ({
@@ -179,6 +196,8 @@ Format your response as a valid JSON with a "prompts" field containing an array 
         if (insertsError) {
           throw new Error(`Failed to insert prompt variations: ${insertsError.message}`);
         }
+        
+        console.log(`Successfully inserted ${promptInserts.length} prompt variations`);
       }
       
       // Create generation jobs for each prompt variation
@@ -206,6 +225,8 @@ Format your response as a valid JSON with a "prompts" field containing an array 
         if (jobsError) {
           throw new Error(`Failed to insert generation jobs: ${jobsError.message}`);
         }
+        
+        console.log(`Successfully inserted ${jobInserts.length} generation jobs`);
       }
       
       // Update session status
@@ -231,6 +252,8 @@ Format your response as a valid JSON with a "prompts" field containing an array 
               variationId: variations[0].id
             })
           });
+          
+          console.log(`Started processing first job for variation: ${variations[0].id}`);
         }
       } catch (processError) {
         console.error("Error starting job processing:", processError);
