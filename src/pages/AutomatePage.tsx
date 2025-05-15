@@ -306,19 +306,6 @@ export default function AutomatePage() {
 
   const renderWelcomeTab = () => (
     <div className="space-y-6">
-      <Alert className="bg-primary/5 border border-primary/20">
-        <Sparkles className="h-4 w-4 text-primary" />
-        <AlertTitle className="text-base md:text-lg font-medium">Coming Soon</AlertTitle>
-        <AlertDescription>
-          <p className="text-sm md:text-base">
-            The Automate feature is currently in development. Soon you'll be able to set up automated workflows for your image generation.
-          </p>
-          <p className="text-sm md:text-base mt-2">
-            You can try our basic prototype below!
-          </p>
-        </AlertDescription>
-      </Alert>
-      
       <form onSubmit={handleSubmit} className="space-y-6 my-8 border rounded-lg p-4">
         <h2 className="text-lg font-medium">Create Automated Ad Campaign</h2>
         
