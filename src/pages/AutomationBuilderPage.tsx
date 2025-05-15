@@ -89,6 +89,13 @@ export default function AutomationBuilderPage() {
     }
   ];
   
+  // Helper function to convert URL to File
+  const urlToFile = async (url: string, filename: string = 'product.jpg'): Promise<File> => {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return new File([blob], filename, { type: blob.type || 'image/jpeg' });
+  };
+  
   // Handle product image selection
   const handleProductImageSelected = (file: File | null, url: string | null) => {
     if (file) {
@@ -193,17 +200,45 @@ export default function AutomationBuilderPage() {
     
     try {
       // Create automation session
-      const productImageFile = productImage;
+      let productImageFile = productImage;
       
+      // If we have a URL but no file, convert URL to File
+      if (!productImageFile && productImageUrl) {
+        try {
+          // Extract filename from URL to preserve file extension
+          const filename = productImageUrl.split('/').pop() || 'product.jpg';
+          productImageFile = await urlToFile(productImageUrl, filename);
+          console.log('Successfully converted product image URL to File object');
+        } catch (error) {
+          console.error('Error converting product image URL to File:', error);
+          throw new Error("Failed to process product image. Please try uploading a different image.");
+        }
+      }
+      
+      // Additional validation to ensure we have a productImageFile
       if (!productImageFile) {
-        throw new Error("Product image file is required");
+        throw new Error("Product image is required. Please select or upload an image.");
+      }
+      
+      // Process reference ad if it's a URL
+      let referenceAdFile = referenceAd;
+      if (!referenceAdFile && referenceAdUrl) {
+        try {
+          const filename = referenceAdUrl.split('/').pop() || 'reference.jpg';
+          referenceAdFile = await urlToFile(referenceAdUrl, filename);
+          console.log('Successfully converted reference ad URL to File object');
+        } catch (error) {
+          console.error('Error converting reference ad URL to File:', error);
+          // We can continue without reference ad
+          console.log('Continuing without reference ad');
+        }
       }
       
       // Create session
       const sessionId = await createAutomationSession(
         productImageFile,
         null, // No brand logo for now
-        referenceAd,
+        referenceAdFile,
         "", // No instructions for now
         parseInt(variationCount, 10)
       );
@@ -247,6 +282,7 @@ export default function AutomationBuilderPage() {
         description: error instanceof Error ? error.message : "An unexpected error occurred",
         variant: "destructive"
       });
+    } finally {
       setIsSubmitting(false);
     }
   };
