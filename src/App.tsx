@@ -234,25 +234,24 @@ function App() {
             session ? <DashboardLayout /> : <Navigate to="/login" replace state={{ from: location }} />
           }>
             <Route path="/home" element={<HomePage />} />
-            <Route path="/gallery" element={<GalleryPage />} />
-            <Route path="/library" element={<LibraryPage />} />
-            <Route path="/photoshoot" element={<PhotoshootPage />} />
+            {/* Hidden routes - kept for future use */}
+            {/* <Route path="/gallery" element={<GalleryPage />} /> */}
+            {/* <Route path="/photoshoot" element={<PhotoshootPage />} /> */}
             <Route path="/automate" element={<AutomatePage />} />
+            <Route path="/library" element={<LibraryPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/products" element={<ProductsPage />} />
             
-            {/* Redirect /generate to /photoshoot */}
-            <Route path="/generate" element={<Navigate to="/photoshoot" replace />} />
+            {/* Redirect /generate to /automate */}
+            <Route path="/generate" element={<Navigate to="/automate" replace />} />
           </Route>
           
           {/* Legacy dashboard routes - redirect to new URLs */}
           <Route path="/dashboard" element={<Navigate to="/home" replace />} />
-          <Route path="/dashboard/gallery" element={<Navigate to="/gallery" replace />} />
           <Route path="/dashboard/library" element={<Navigate to="/library" replace />} />
-          <Route path="/dashboard/generate" element={<Navigate to="/photoshoot" replace />} />
           <Route path="/dashboard/settings" element={<Navigate to="/settings" replace />} />
           <Route path="/dashboard/products" element={<Navigate to="/products" replace />} />
-          <Route path="/dashboard/photoshoot" element={<Navigate to="/photoshoot" replace />} />
+          <Route path="/dashboard/automate" element={<Navigate to="/automate" replace />} />
           
           {/* Catch-all redirect to login */}
           <Route path="*" element={<Navigate to="/login" replace />} />

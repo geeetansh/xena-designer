@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft,
   ChevronRight,
@@ -69,6 +70,7 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
   const [progress, setProgress] = useState(0);
 
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   // Reset the form when the modal is opened
   useEffect(() => {
@@ -146,6 +148,9 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
       if (onSuccess) {
         onSuccess(sessionId);
       }
+      
+      // Navigate to the automate page
+      navigate('/automate');
       
       // Start the progress tracking
       setProgress(10);

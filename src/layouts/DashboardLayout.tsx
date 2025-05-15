@@ -180,20 +180,9 @@ export default function DashboardLayout() {
   // Navigation categories for the sidebar
   const navigationItems = {
     main: [
-      { id: 'home', label: 'Home', icon: <TbSmartHome className="h-5 w-5" /> },
-      { 
-        id: 'gallery', 
-        label: 'My creatives', 
-        icon: <LuGalleryVerticalEnd className="h-5 w-5" />,
-        badge: imageCount > 0 ? imageCount : undefined
-      }
+      { id: 'home', label: 'Home', icon: <TbSmartHome className="h-5 w-5" /> }
     ],
     generate: [
-      { 
-        id: 'photoshoot', 
-        label: 'Photoshoots', 
-        icon: <TbPhotoSquareRounded className="h-5 w-5" />
-      },
       { 
         id: 'automate', 
         label: 'Static ad', 
@@ -375,9 +364,8 @@ export default function DashboardLayout() {
   // Combine navigation items for mobile bottom bar
   const mobileNavItems = [
     navigationItems.main[0], // Home
-    navigationItems.main[1], // Gallery
-    navigationItems.generate[0], // Photoshoots
-    navigationItems.generate[1], // Static ad
+    navigationItems.generate[0], // Static ad
+    navigationItems.others[0], // Assets
   ];
 
   return (
