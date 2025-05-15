@@ -1,21 +1,12 @@
-import { useState, useEffect } from 'react';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Sparkles, Upload, Image as ImageIcon, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { FileUpload } from '@/components/FileUpload';
 import { LazyImage } from '@/components/LazyImage';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { 
-  Card, 
-  CardContent, 
-  CardFooter, 
-  CardHeader, 
-  CardTitle, 
-  CardDescription 
+  Card,
+  CardContent
 } from '@/components/ui/card';
 import {
   Select,
@@ -24,14 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
 import { createAutomationSession, generatePrompts } from '@/services/automationService';
 import { Progress } from '@/components/ui/progress';
+import { Loader2, Image as ImageIcon } from 'lucide-react';
 
 interface Session {
   id: string;
@@ -61,17 +47,16 @@ interface GenerationJob {
 }
 
 export default function AutomatePage() {
-  const [activeTab, setActiveTab] = useState("welcome");
+  const [currentStep, setCurrentStep] = useState(1);
   const [productImage, setProductImage] = useState<File[]>([]);
-  const [brandLogo, setBrandLogo] = useState<File[]>([]);
   const [referenceAd, setReferenceAd] = useState<File[]>([]);
-  const [instructions, setInstructions] = useState('');
   const [variationCount, setVariationCount] = useState('3');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [promptVariations, setPromptVariations] = useState<PromptVariation[]>([]);
   const [generationJobs, setGenerationJobs] = useState<GenerationJob[]>([]);
   const [progress, setProgress] = useState(0);
+  const latestJobsRef = useRef<GenerationJob[]>([]);
   
   const { toast } = useToast();
 
@@ -156,6 +141,38 @@ export default function AutomatePage() {
     fetchGenerationJobs(currentSession.id);
   }, [currentSession]);
 
+  // Fetch latest jobs automatically
+  useEffect(() => {
+    fetchLatestJobs();
+    
+    // Set up interval to fetch latest jobs every 10 seconds
+    const interval = setInterval(() => {
+      fetchLatestJobs();
+    }, 10000);
+    
+    return () => clearInterval(interval);
+  }, []);
+  
+  const fetchLatestJobs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('generation_jobs')
+        .select('*, prompt_variations!inner(session_id, index)')
+        .order('created_at', { ascending: false })
+        .limit(10);
+        
+      if (error) {
+        console.error('Error fetching latest jobs:', error);
+        return;
+      }
+      
+      latestJobsRef.current = data;
+      setGenerationJobs(data);
+    } catch (error) {
+      console.error('Error fetching latest jobs:', error);
+    }
+  };
+
   const fetchPromptVariations = async (sessionId: string) => {
     try {
       const { data, error } = await supabase
@@ -217,9 +234,15 @@ export default function AutomatePage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const handleNext = () => {
+    setCurrentStep(prev => Math.min(prev + 1, 3));
+  };
+
+  const handleBack = () => {
+    setCurrentStep(prev => Math.max(prev - 1, 1));
+  };
+
+  const handleSubmit = async () => {
     try {
       setIsSubmitting(true);
       
@@ -237,9 +260,9 @@ export default function AutomatePage() {
       // Create automation session
       const sessionId = await createAutomationSession(
         productImage[0],
-        brandLogo.length > 0 ? brandLogo[0] : null,
+        null,
         referenceAd.length > 0 ? referenceAd[0] : null,
-        instructions,
+        "", // No instructions for now
         parseInt(variationCount, 10)
       );
       
@@ -252,12 +275,9 @@ export default function AutomatePage() {
       });
       
       toast({
-        title: "Session created",
-        description: "Your automation session has been created. Generating prompts...",
+        title: "Campaign started",
+        description: "Your ad campaign is being generated.",
       });
-      
-      // Move to next step
-      setActiveTab("progress");
       
       // Start generating prompts
       await generatePrompts(sessionId);
@@ -274,69 +294,26 @@ export default function AutomatePage() {
     }
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'Completed';
-      case 'failed':
-        return 'Failed';
-      case 'in_progress':
-        return 'Processing';
-      case 'queued':
-        return 'Queued';
-      default:
-        return 'Unknown';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'failed':
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
-      case 'in_progress':
-        return <Loader2 className="h-4 w-4 animate-spin" />;
-      case 'queued':
-        return <Loader2 className="h-4 w-4" />;
-      default:
-        return <AlertCircle className="h-4 w-4" />;
-    }
-  };
-
-  const renderWelcomeTab = () => (
-    <div className="space-y-6">
-      <form onSubmit={handleSubmit} className="space-y-6 my-8 border rounded-lg p-4">
-        <h2 className="text-lg font-medium">Create Automated Ad Campaign</h2>
-        
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="product-image">Product Image (Required)</Label>
-              <FileUpload
-                onFilesSelected={setProductImage}
-                selectedFiles={productImage}
-                maxFiles={1}
-                singleFileMode={true}
-                uploadType="Product Image"
-                required={true}
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="brand-logo">Brand Logo (Optional)</Label>
-              <FileUpload
-                onFilesSelected={setBrandLogo}
-                selectedFiles={brandLogo}
-                maxFiles={1}
-                singleFileMode={true}
-                uploadType="Brand Logo"
-              />
-            </div>
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Step 1: Select Product Image</h3>
+            <FileUpload
+              onFilesSelected={setProductImage}
+              selectedFiles={productImage}
+              maxFiles={1}
+              singleFileMode={true}
+              uploadType="Product Image"
+              required={true}
+            />
           </div>
-          
-          <div>
-            <Label htmlFor="reference-ad">Reference Ad (Optional)</Label>
+        );
+      case 2:
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Step 2: Add Reference Ad (Optional)</h3>
             <FileUpload
               onFilesSelected={setReferenceAd}
               selectedFiles={referenceAd}
@@ -345,28 +322,16 @@ export default function AutomatePage() {
               uploadType="Reference Ad"
             />
           </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="instructions">Additional Instructions (Optional)</Label>
-            <Textarea
-              id="instructions"
-              placeholder="Enter any specific instructions or preferences for your ads..."
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-              className="min-h-[100px]"
-            />
-            <p className="text-xs text-muted-foreground">
-              Include any specific details about your brand, target audience, preferred themes, or style guidance.
-            </p>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="variation-count">Number of Variations</Label>
+        );
+      case 3:
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Step 3: Choose Number of Variations</h3>
             <Select 
               value={variationCount} 
               onValueChange={setVariationCount}
             >
-              <SelectTrigger id="variation-count">
+              <SelectTrigger id="variation-count" className="w-full">
                 <SelectValue placeholder="3 variations" />
               </SelectTrigger>
               <SelectContent>
@@ -377,155 +342,124 @@ export default function AutomatePage() {
               </SelectContent>
             </Select>
           </div>
-        </div>
-        
-        <Button type="submit" disabled={isSubmitting || productImage.length === 0}>
-          {isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Creating...
-            </>
-          ) : (
-            'Create Automated Ads'
-          )}
-        </Button>
-      </form>
-      
-      <div className="mt-8">
-        <h2 className="text-lg md:text-xl font-medium mb-4">What to expect</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="border rounded-lg p-4">
-            <h3 className="text-base font-medium mb-2">Smart Prompt Generation</h3>
-            <p className="text-sm text-muted-foreground">
-              Our AI will analyze your product image and generate tailored prompts for creating ads.
-            </p>
-          </div>
-          <div className="border rounded-lg p-4">
-            <h3 className="text-base font-medium mb-2">Multiple Ad Variations</h3>
-            <p className="text-sm text-muted-foreground">
-              Create several different ad styles and concepts from a single product image.
-            </p>
-          </div>
-          <div className="border rounded-lg p-4">
-            <h3 className="text-base font-medium mb-2">Real-time Updates</h3>
-            <p className="text-sm text-muted-foreground">
-              Watch as your ads are generated and view results immediately when ready.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderProgressTab = () => (
-    <div className="space-y-6">
-      <div className="bg-muted/20 p-4 rounded-lg border">
-        <h2 className="text-lg font-medium mb-4">Generation Progress</h2>
-        
-        <div className="space-y-2 mb-6">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">
-              {progress < 50 ? 'Generating prompts...' : 
-               progress < 100 ? 'Creating ads...' : 
-               'All ads completed!'}
-            </span>
-            <span className="text-sm">{Math.round(progress)}%</span>
-          </div>
-          <Progress value={progress} className="h-2" />
-        </div>
-        
-        {promptVariations.length > 0 && (
-          <div className="space-y-4 mt-8">
-            <h3 className="text-base font-medium">Generated Prompts</h3>
-            <div className="space-y-2">
-              {promptVariations.map((variation) => {
-                const job = generationJobs.find(j => j.variation_id === variation.id);
-                
-                return (
-                  <div key={variation.id} className="border rounded-lg p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="text-sm font-medium">Variation {variation.index + 1}</h4>
-                      <div className="flex items-center">
-                        {job && getStatusIcon(job.status)}
-                        <span className="text-xs ml-1">{job ? getStatusLabel(job.status) : 'Waiting'}</span>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <h5 className="text-xs text-muted-foreground mb-1">Prompt</h5>
-                        <p className="text-xs bg-muted/30 p-2 rounded max-h-32 overflow-y-auto">
-                          {variation.prompt}
-                        </p>
-                      </div>
-                      
-                      {job && job.image_url && (
-                        <div>
-                          <h5 className="text-xs text-muted-foreground mb-1">Generated Image</h5>
-                          <div className="aspect-square w-full h-auto bg-muted/30 rounded overflow-hidden">
-                            <LazyImage
-                              src={job.image_url}
-                              alt={`Generated ad ${variation.index + 1}`}
-                              className="object-cover w-full h-full"
-                            />
-                          </div>
-                        </div>
-                      )}
-                      
-                      {job && job.status === 'failed' && (
-                        <div className="col-span-2">
-                          <div className="bg-red-50 text-red-700 p-2 rounded text-xs">
-                            Error: {job.error_message || 'Failed to generate image'}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-        
-        <div className="mt-6 flex justify-end">
-          <Button 
-            variant="outline" 
-            onClick={() => setActiveTab("welcome")}
-            className="mr-2"
-          >
-            Start New
-          </Button>
-          
-          {progress === 100 && (
-            <Button>
-              Download All
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto w-full py-4 md:py-8">
-      <h1 className="text-xl md:text-2xl font-bold mb-6">Automate</h1>
-      
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mb-4">
-          <TabsTrigger value="welcome">Home</TabsTrigger>
-          {currentSession && (
-            <TabsTrigger value="progress">Progress</TabsTrigger>
+      <div className="space-y-6">
+        {/* Step banner */}
+        <div className="bg-gradient-to-r from-background/80 to-background/40 rounded-lg p-4 border shadow-sm">
+          <div className="flex justify-between mb-4">
+            {[1, 2, 3].map((step) => (
+              <Button
+                key={step}
+                variant={currentStep === step ? "default" : "outline"}
+                onClick={() => setCurrentStep(step)}
+                className="flex-1 mx-1"
+              >
+                Step {step}
+              </Button>
+            ))}
+          </div>
+
+          {/* Current step content */}
+          <div className="p-4 border rounded-lg bg-card">
+            {renderStepContent()}
+          </div>
+
+          {/* Navigation buttons */}
+          <div className="flex justify-between mt-4">
+            <Button
+              variant="outline"
+              onClick={handleBack}
+              disabled={currentStep === 1}
+            >
+              Back
+            </Button>
+            
+            {currentStep < 3 ? (
+              <Button onClick={handleNext}>Next</Button>
+            ) : (
+              <Button 
+                onClick={handleSubmit} 
+                disabled={isSubmitting || productImage.length === 0}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  'Start'
+                )}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Gallery view of generation jobs */}
+        <div>
+          <h2 className="text-lg font-medium mb-4">Generated Ads</h2>
+          
+          {currentSession && progress > 0 && (
+            <div className="mb-4 p-4 bg-muted/30 rounded-lg border">
+              <div className="flex items-center justify-between text-sm mb-2">
+                <span>
+                  {progress < 50 ? 'Generating prompts...' : 
+                  progress < 100 ? 'Creating ads...' : 
+                  'All ads completed!'}
+                </span>
+                <span>{Math.round(progress)}%</span>
+              </div>
+              <Progress value={progress} className="h-2" />
+            </div>
           )}
-        </TabsList>
-        
-        <TabsContent value="welcome">
-          {renderWelcomeTab()}
-        </TabsContent>
-        
-        <TabsContent value="progress">
-          {renderProgressTab()}
-        </TabsContent>
-      </Tabs>
+
+          {generationJobs.length === 0 ? (
+            <div className="text-center py-12 bg-muted/20 rounded-lg border">
+              <ImageIcon className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">No generated ads yet</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+              {generationJobs.map((job) => (
+                <Card key={job.id} className="overflow-hidden">
+                  <CardContent className="p-2">
+                    <div className="aspect-square w-full h-auto bg-muted/30 rounded overflow-hidden relative">
+                      {job.status === 'failed' ? (
+                        <img 
+                          src="https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/68100a4d9b154c0a40484bd8_ChatGPT%20Image%20Apr%2029%2C%202025%2C%2004_37_51%20AM.png"
+                          alt="Failed generation"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : job.status === 'completed' && job.image_url ? (
+                        <LazyImage
+                          src={job.image_url}
+                          alt="Generated ad"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <div className="animate-pulse flex flex-col items-center">
+                            <Loader2 className="h-8 w-8 text-muted-foreground animate-spin" />
+                            <span className="mt-2 text-xs text-muted-foreground">
+                              {job.status}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
