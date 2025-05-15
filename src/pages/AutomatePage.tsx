@@ -13,6 +13,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
   DialogClose
 } from "@/components/ui/dialog";
@@ -25,20 +26,8 @@ import {
 } from "@/components/ui/select";
 import { createAutomationSession, generatePrompts } from '@/services/automationService';
 import { Progress } from '@/components/ui/progress';
-import { 
-  Check, 
-  Loader2, 
-  Image as ImageIcon, 
-  Eye, 
-  Download, 
-  AlertTriangle, 
-  Calendar, 
-  ChevronLeft, 
-  ChevronRight, 
-  MapPin 
-} from 'lucide-react';
+import { Loader2, Image as ImageIcon, Eye, Download, AlertTriangle, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
 
 interface Session {
   id: string;
@@ -66,7 +55,6 @@ interface GenerationJob {
   status: string;
   error_message?: string;
   created_at: string;
-  prompt_variations?: any;
 }
 
 export default function AutomatePage() {
@@ -85,7 +73,6 @@ export default function AutomatePage() {
   const latestJobsRef = useRef<GenerationJob[]>([]);
   
   const { toast } = useToast();
-  const totalSteps = 4;
 
   // Subscribe to realtime updates for the session
   useEffect(() => {
@@ -275,19 +262,7 @@ export default function AutomatePage() {
   };
 
   const handleNext = () => {
-    if (currentStep < totalSteps) {
-      // Validate required fields for Step 1
-      if (currentStep === 1 && productImage.length === 0) {
-        toast({
-          title: "Product image required",
-          description: "Please upload a product image to continue",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      setCurrentStep(prev => prev + 1);
-    }
+    setCurrentStep(prev => Math.min(prev + 1, 3));
   };
 
   const handleBack = () => {
@@ -378,280 +353,116 @@ export default function AutomatePage() {
     }
   };
 
-  // Render step progress indicator to match the design
-  const renderStepIndicator = () => {
-    return (
-      <div className="flex items-center justify-center w-full">
-        {Array.from({ length: totalSteps }).map((_, index) => {
-          const stepNum = index + 1;
-          const isActive = currentStep === stepNum;
-          const isCompleted = currentStep > stepNum;
-          
-          return (
-            <div key={stepNum} className="flex items-center">
-              <div className="relative">
-                <div 
-                  className={cn(
-                    "flex items-center justify-center w-12 h-12 rounded-full text-sm font-medium z-10 relative",
-                    isActive 
-                      ? "bg-green-100 border-2 border-dashed border-green-500" // Current step
-                      : isCompleted
-                        ? "bg-green-100" // Completed step
-                        : "bg-gray-100" // Future step
-                  )}
-                >
-                  {isCompleted ? (
-                    <Check className="h-6 w-6 text-green-500" />
-                  ) : (
-                    <span className={cn(
-                      "text-lg",
-                      isActive ? "text-black" : "text-gray-500"
-                    )}>{stepNum}</span>
-                  )}
-                </div>
-                
-                {/* Adds ring for active step */}
-                {isActive && (
-                  <div className="absolute inset-0 rounded-full border-2 border-green-500 animate-pulse"></div>
-                )}
-              </div>
-              
-              {/* Connector line between steps */}
-              {stepNum < totalSteps && (
-                <div 
-                  className={cn(
-                    "w-32 h-0.5",
-                    isCompleted ? "bg-green-500" : "bg-gray-200"
-                  )}
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
-  // Render the cards that match the reference design
-  const renderStepCards = () => {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* Card 1: Product Image */}
-        <Card className={cn(
-          "overflow-hidden",
-          currentStep === 1 ? "ring-2 ring-green-500" : "",
-          currentStep < 1 ? "border border-dashed" : ""
-        )}>
-          <CardContent className="p-0">
-            <div className="p-4">
-              {productImage.length > 0 ? (
-                <div className="mb-4">
-                  <img 
-                    src={URL.createObjectURL(productImage[0])} 
-                    alt="Product" 
-                    className="w-full aspect-square object-cover rounded-md border"
-                  />
-                </div>
-              ) : (
-                <div className="mb-4 w-full aspect-square rounded-md border border-dashed border-gray-300 flex items-center justify-center bg-gray-50">
-                  <ImageIcon className="h-12 w-12 text-gray-300" />
-                </div>
-              )}
-
-              <div className="w-full">
-                {currentStep === 1 && (
-                  <FileUpload
-                    onFilesSelected={setProductImage}
-                    selectedFiles={productImage}
-                    maxFiles={1}
-                    singleFileMode={true}
-                    uploadType="Product Image"
-                    required={true}
-                  />
-                )}
-
-                {currentStep !== 1 && productImage.length === 0 && (
-                  <Button
-                    variant="ghost"
-                    className="w-full border border-dashed border-gray-300 py-2 bg-gray-50 text-gray-500"
-                    onClick={() => setCurrentStep(1)}
-                  >
-                    <span className="mr-2">📦</span> Select product
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 2: Reference Ad */}
-        <Card className={cn(
-          "overflow-hidden",
-          currentStep === 2 ? "ring-2 ring-green-500" : "",
-          currentStep < 2 ? "border border-dashed" : ""
-        )}>
-          <CardContent className="p-0">
-            <div className="p-4">
-              {referenceAd.length > 0 ? (
-                <div className="mb-4">
-                  <img 
-                    src={URL.createObjectURL(referenceAd[0])} 
-                    alt="Reference" 
-                    className="w-full aspect-square object-cover rounded-md border"
-                  />
-                </div>
-              ) : (
-                <div className="mb-4 w-full aspect-square rounded-md border border-dashed border-gray-300 flex items-center justify-center bg-gray-50">
-                  {currentStep >= 2 ? (
-                    <ImageIcon className="h-12 w-12 text-gray-300" />
-                  ) : (
-                    <div className="text-center text-gray-400">
-                      <span className="text-sm">Step 2</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {currentStep === 2 && (
-                <FileUpload
-                  onFilesSelected={setReferenceAd}
-                  selectedFiles={referenceAd}
-                  maxFiles={1}
-                  singleFileMode={true}
-                  uploadType="Reference Ad"
-                />
-              )}
-
-              {currentStep !== 2 && referenceAd.length === 0 && currentStep >= 2 && (
-                <Button
-                  variant="ghost"
-                  className="w-full border border-dashed border-gray-300 py-2 bg-gray-50 text-gray-500"
-                  onClick={() => setCurrentStep(2)}
-                >
-                  <span className="mr-2">🎨</span> Select reference ad
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 3: Variations */}
-        <Card className={cn(
-          "overflow-hidden",
-          currentStep === 3 ? "ring-2 ring-green-500" : "",
-          currentStep < 3 ? "border border-dashed" : "",
-          currentStep === 3 ? "bg-white" : "bg-gray-50"
-        )}>
-          <CardContent className="p-0">
-            <div className="p-4">
-              <div className="mb-4 w-full aspect-square rounded-md border border-dashed border-gray-300 flex flex-col items-center justify-center bg-gray-50">
-                {currentStep >= 3 ? (
-                  <div className="p-6 flex flex-col items-center">
-                    <h3 className="text-lg font-medium mb-4 text-gray-700">Variations</h3>
-                    {currentStep === 3 ? (
-                      <div className="w-full space-y-4">
-                        <p className="text-sm text-gray-500">
-                          Choose how many ad variations you want to generate
-                        </p>
-                        
-                        <Select 
-                          value={variationCount} 
-                          onValueChange={setVariationCount}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="3 variations" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="1">1 variation</SelectItem>
-                            <SelectItem value="2">2 variations</SelectItem>
-                            <SelectItem value="3">3 variations</SelectItem>
-                            <SelectItem value="5">5 variations</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        
-                        <div className="text-sm text-gray-500">
-                          <p>Each variation will use 1 credit</p>
-                          <p className="mt-1">Total cost: {variationCount} credits</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center">
-                        {currentStep > 3 ? (
-                          <div className="flex flex-col items-center">
-                            <Check className="h-10 w-10 text-green-500 mb-2" />
-                            <p className="text-sm font-medium">{variationCount} variations</p>
-                          </div>
-                        ) : (
-                          <p className="text-sm text-gray-500">Choose variations</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center text-gray-400">
-                    <span className="text-sm">Step 3</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 4: Final Step */}
-        <Card className={cn(
-          "overflow-hidden",
-          currentStep === 4 ? "ring-2 ring-green-500" : "",
-          currentStep < 4 ? "border border-dashed" : "",
-          currentStep === 4 ? "bg-white" : "bg-gray-50"
-        )}>
-          <CardContent className="p-0">
-            <div className="p-4">
-              <div className="mb-4 w-full aspect-square rounded-md border border-dashed border-gray-300 flex flex-col items-center justify-center bg-gray-50">
-                {currentStep >= 4 ? (
-                  <div className="flex flex-col items-center p-6">
-                    <h3 className="text-lg font-medium mb-2 text-gray-700">Final Step</h3>
-                    <p className="text-sm text-gray-500 text-center mb-4">
-                      Review and complete
-                    </p>
-                    
-                    {currentSession ? (
-                      <div className="flex flex-col items-center">
-                        <Check className="h-10 w-10 text-green-500 mb-2" />
-                        <p className="text-sm font-medium">Campaign Started</p>
-                      </div>
-                    ) : (
-                      <MapPin className="h-10 w-10 text-gray-300" />
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center text-gray-400">
-                    <span className="text-sm">Step 4</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Step 1: Select Product Image</h3>
+            <FileUpload
+              onFilesSelected={setProductImage}
+              selectedFiles={productImage}
+              maxFiles={1}
+              singleFileMode={true}
+              uploadType="Product Image"
+              required={true}
+            />
+          </div>
+        );
+      case 2:
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Step 2: Add Reference Ad (Optional)</h3>
+            <FileUpload
+              onFilesSelected={setReferenceAd}
+              selectedFiles={referenceAd}
+              maxFiles={1}
+              singleFileMode={true}
+              uploadType="Reference Ad"
+            />
+          </div>
+        );
+      case 3:
+        return (
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Step 3: Choose Number of Variations</h3>
+            <Select 
+              value={variationCount} 
+              onValueChange={setVariationCount}
+            >
+              <SelectTrigger id="variation-count" className="w-full">
+                <SelectValue placeholder="3 variations" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1 variation</SelectItem>
+                <SelectItem value="2">2 variations</SelectItem>
+                <SelectItem value="3">3 variations</SelectItem>
+                <SelectItem value="5">5 variations</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        );
+      default:
+        return null;
+    }
   };
 
   return (
     <div className="max-w-6xl mx-auto w-full py-4 md:py-8">
-      <h1 className="text-2xl font-bold mb-8">Automate Ad Creation</h1>
-      
-      <div className="relative rounded-xl border p-6 md:p-8 bg-white mb-8">
-        {/* Step indicator */}
-        <div className="mb-10">
-          {renderStepIndicator()}
+      <div className="space-y-6">
+        {/* Step banner */}
+        <div className="bg-gradient-to-r from-background/80 to-background/40 rounded-lg p-4 border shadow-sm">
+          <div className="flex justify-between mb-4">
+            {[1, 2, 3].map((step) => (
+              <Button
+                key={step}
+                variant={currentStep === step ? "default" : "outline"}
+                onClick={() => setCurrentStep(step)}
+                className="flex-1 mx-1"
+              >
+                Step {step}
+              </Button>
+            ))}
+          </div>
+
+          {/* Current step content */}
+          <div className="p-4 border rounded-lg bg-card">
+            {renderStepContent()}
+          </div>
+
+          {/* Navigation buttons */}
+          <div className="flex justify-between mt-4">
+            <Button
+              variant="outline"
+              onClick={handleBack}
+              disabled={currentStep === 1}
+            >
+              Back
+            </Button>
+            
+            {currentStep < 3 ? (
+              <Button onClick={handleNext}>Next</Button>
+            ) : (
+              <Button 
+                onClick={handleSubmit} 
+                disabled={isSubmitting || productImage.length === 0}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  'Start'
+                )}
+              </Button>
+            )}
+          </div>
         </div>
-        
-        {/* Step cards */}
-        {renderStepCards()}
-        
+
         {/* Progress indicator for current session */}
         {currentSession && progress > 0 && (
-          <div className="mt-6 mb-4 p-4 bg-gray-50 rounded-lg border">
+          <div className="mb-4 p-4 bg-muted/30 rounded-lg border">
             <div className="flex items-center justify-between text-sm mb-2">
               <span>
                 {progress < 50 ? 'Generating prompts...' : 
@@ -663,75 +474,36 @@ export default function AutomatePage() {
             <Progress value={progress} className="h-2" />
           </div>
         )}
-        
-        {/* Navigation buttons */}
-        <div className="flex justify-between mt-8">
-          <Button
-            variant="ghost"
-            onClick={handleBack}
-            disabled={currentStep === 1 || isSubmitting}
-            className="flex items-center"
-          >
-            <ChevronLeft className="mr-1 h-4 w-4" />
-            Back
-          </Button>
-          
-          {currentStep < totalSteps ? (
-            <Button 
-              onClick={handleNext}
-              disabled={(currentStep === 1 && productImage.length === 0) || isSubmitting}
-              className="bg-gray-800 hover:bg-gray-700"
-            >
-              Next
-              <ChevronRight className="ml-1 h-4 w-4" />
-            </Button>
-          ) : (
-            <Button 
-              onClick={handleSubmit} 
-              disabled={isSubmitting || productImage.length === 0}
-              className="bg-gray-800 hover:bg-gray-700"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating Campaign...
-                </>
-              ) : (
-                'Create Campaign'
-              )}
-            </Button>
-          )}
-        </div>
-      </div>
 
-      {/* Gallery view of generation jobs */}
-      <div>
-        <h2 className="text-lg font-bold mb-4">Generated Ads</h2>
-        
-        {isLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="aspect-square rounded-lg bg-gray-200 animate-pulse" />
-            ))}
-          </div>
-        ) : generationJobs.length === 0 ? (
-          <div className="text-center py-12 bg-gray-50 rounded-lg border">
-            <ImageIcon className="mx-auto h-12 w-12 text-gray-300 mb-4" />
-            <p className="text-gray-500">No generated ads yet</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {generationJobs.map((job) => (
-              <Card
-                key={job.id}
-                className="relative group overflow-hidden transition-all duration-200 hover:shadow-md"
-              >
-                <CardContent className="p-0">
+        {/* Gallery view of generation jobs */}
+        <div>
+          <h2 className="text-lg font-medium mb-4">Generated Ads</h2>
+          
+          {isLoading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="aspect-square rounded-lg bg-muted animate-pulse" />
+              ))}
+            </div>
+          ) : generationJobs.length === 0 ? (
+            <div className="text-center py-12 bg-muted/20 rounded-lg border">
+              <ImageIcon className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">No generated ads yet</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {generationJobs.map((job) => (
+                <div 
+                  key={job.id}
+                  className="relative group overflow-hidden rounded-lg shadow-sm transition-all duration-200 hover:shadow-md"
+                >
                   <div className="aspect-square w-full h-full bg-background">
                     {job.status === 'failed' ? (
-                      <div className="w-full h-full flex items-center justify-center bg-rose-50 text-rose-500">
-                        <AlertTriangle className="h-10 w-10" />
-                      </div>
+                      <img 
+                        src="https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/68100a4d9b154c0a40484bd8_ChatGPT%20Image%20Apr%2029%2C%202025%2C%2004_37_51%20AM.png"
+                        alt="Failed generation"
+                        className="w-full h-full object-cover"
+                      />
                     ) : job.status === 'completed' && job.image_url ? (
                       <LazyImage
                         src={job.image_url}
@@ -739,10 +511,10 @@ export default function AutomatePage() {
                         className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-50">
+                      <div className="w-full h-full flex items-center justify-center bg-muted/30">
                         <div className="animate-pulse flex flex-col items-center">
-                          <Loader2 className="h-8 w-8 text-gray-300 animate-spin" />
-                          <span className="mt-2 text-xs text-gray-400">
+                          <Loader2 className="h-8 w-8 text-muted-foreground animate-spin" />
+                          <span className="mt-2 text-xs text-muted-foreground">
                             {job.status}
                           </span>
                         </div>
@@ -780,11 +552,11 @@ export default function AutomatePage() {
                       </div>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Image Details Dialog */}
@@ -793,6 +565,9 @@ export default function AutomatePage() {
           <DialogContent className="max-w-4xl md:max-w-5xl sm:max-w-[80%] p-0 overflow-hidden flex flex-col max-h-[90vh]">
             <DialogHeader className="px-4 pt-4">
               <DialogTitle className="text-xl">Ad Details</DialogTitle>
+              <DialogDescription>
+                View your generated ad and reference images
+              </DialogDescription>
             </DialogHeader>
             
             <div className="flex-1 overflow-y-auto p-4">
@@ -800,12 +575,12 @@ export default function AutomatePage() {
                 {/* Left side - Generated Image */}
                 <div className="space-y-4">
                   <h3 className="font-medium">Generated Ad</h3>
-                  <div className="aspect-square rounded-lg overflow-hidden border bg-gray-50">
+                  <div className="aspect-square rounded-lg overflow-hidden border bg-muted/30">
                     {selectedJob.status === 'failed' ? (
                       <div className="h-full w-full flex flex-col items-center justify-center p-6 text-center">
                         <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
                         <p className="text-sm font-medium">Generation failed</p>
-                        <p className="text-xs text-gray-500 mt-2">
+                        <p className="text-xs text-muted-foreground mt-2">
                           {selectedJob.error_message || "The ad could not be generated"}
                         </p>
                       </div>
@@ -817,7 +592,7 @@ export default function AutomatePage() {
                       />
                     ) : (
                       <div className="h-full w-full flex items-center justify-center">
-                        <Loader2 className="h-10 w-10 animate-spin text-gray-300" />
+                        <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
                       </div>
                     )}
                   </div>
@@ -839,7 +614,7 @@ export default function AutomatePage() {
                   {/* Prompt */}
                   <div className="space-y-2">
                     <h3 className="font-medium">Prompt</h3>
-                    <div className="p-4 border rounded-lg bg-gray-50 text-sm">
+                    <div className="p-4 border rounded-lg bg-muted/30 text-sm">
                       <p>{selectedJob.prompt}</p>
                     </div>
                   </div>
@@ -852,7 +627,7 @@ export default function AutomatePage() {
                         {/* Product Image */}
                         {selectedJob.prompt_variations.automation_sessions?.product_image_url && (
                           <div className="space-y-1">
-                            <p className="text-xs text-gray-500">Product Image</p>
+                            <p className="text-xs text-muted-foreground">Product Image</p>
                             <div className="aspect-square border rounded-md overflow-hidden">
                               <LazyImage
                                 src={selectedJob.prompt_variations.automation_sessions.product_image_url}
@@ -866,7 +641,7 @@ export default function AutomatePage() {
                         {/* Reference Ad */}
                         {selectedJob.prompt_variations.automation_sessions?.reference_ad_url && (
                           <div className="space-y-1">
-                            <p className="text-xs text-gray-500">Reference Ad</p>
+                            <p className="text-xs text-muted-foreground">Reference Ad</p>
                             <div className="aspect-square border rounded-md overflow-hidden">
                               <LazyImage
                                 src={selectedJob.prompt_variations.automation_sessions.reference_ad_url}
@@ -885,7 +660,7 @@ export default function AutomatePage() {
                     <h3 className="font-medium">Information</h3>
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
-                        <p className="text-xs text-gray-500">Created</p>
+                        <p className="text-xs text-muted-foreground">Created</p>
                         <p className="flex items-center">
                           <Calendar className="h-3.5 w-3.5 mr-1.5" />
                           {selectedJob.created_at ? 
@@ -894,7 +669,7 @@ export default function AutomatePage() {
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500">Status</p>
+                        <p className="text-xs text-muted-foreground">Status</p>
                         <p className="capitalize">{selectedJob.status}</p>
                       </div>
                     </div>
