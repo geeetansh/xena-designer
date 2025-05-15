@@ -22,6 +22,7 @@ import { FaMeta } from "react-icons/fa6";
 import { SiShopify } from "react-icons/si";
 import { IoSettingsOutline } from "react-icons/io5";
 import { LuLibrary } from "react-icons/lu";
+import { RiRobot2Line } from "react-icons/ri";
 
 export default function DashboardLayout() {
   const [imageCount, setImageCount] = useState(0);
@@ -193,6 +194,11 @@ export default function DashboardLayout() {
         id: 'photoshoot', 
         label: 'Generate Now', 
         icon: <TbPhotoSquareRounded className="h-5 w-5" />
+      },
+      { 
+        id: 'automate', 
+        label: 'Automate', 
+        icon: <RiRobot2Line className="h-5 w-5" />
       }
     ],
     others: [
@@ -215,6 +221,8 @@ export default function DashboardLayout() {
         return 'Assets';
       case 'photoshoot':
         return 'Generate Now';
+      case 'automate':
+        return 'Automate';
       case 'products':
         return 'My Products';
       case 'settings':

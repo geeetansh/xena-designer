@@ -16,6 +16,7 @@ import HomePage from '@/pages/HomePage';
 import GalleryPage from '@/pages/GalleryPage';
 import LibraryPage from '@/pages/LibraryPage';
 import PhotoshootPage from '@/pages/PhotoshootPage';
+import AutomatePage from '@/pages/AutomatePage';
 import SettingsPage from '@/pages/SettingsPage';
 import ProductsPage from '@/pages/ProductsPage';
 import NewAssetPage from '@/pages/NewAssetPage';
@@ -231,6 +232,7 @@ function App() {
             <Route path="/gallery" element={<GalleryPage />} />
             <Route path="/library" element={<LibraryPage />} />
             <Route path="/photoshoot" element={<PhotoshootPage />} />
+            <Route path="/automate" element={<AutomatePage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/products" element={<ProductsPage />} />
             
