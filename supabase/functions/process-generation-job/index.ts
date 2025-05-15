@@ -12,6 +12,67 @@ const openai = new OpenAI({
   apiKey: Deno.env.get("VITE_OPENAI_API_KEY")
 });
 
+/**
+ * Downloads an image from a URL and returns it as a Blob
+ * This function handles both external URLs and Supabase storage URLs
+ */
+async function downloadImageFromUrl(url: string, supabase: any, supabaseUrl: string): Promise<Blob | null> {
+  try {
+    // For external URLs, fetch directly
+    if (!url.includes(supabaseUrl)) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
+      return await response.blob();
+    } else {
+      // For Supabase URLs, extract bucket and path
+      const urlPath = new URL(url).pathname;
+      const parts = urlPath.split('/');
+      const bucketIndex = parts.indexOf("public") + 1;
+      
+      if (bucketIndex <= 0) {
+        throw new Error('Invalid URL format');
+      }
+      
+      const bucket = parts[bucketIndex];
+      const path = parts.slice(bucketIndex + 1).join('/');
+      
+      // Download from Supabase Storage
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .download(path);
+        
+      if (error) {
+        throw new Error(`Failed to download reference image: ${error.message}`);
+      }
+      
+      if (!data) {
+        throw new Error('No file data returned from storage');
+      }
+      
+      return data;
+    }
+  } catch (error) {
+    console.error(`Error downloading image from ${url}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Prepares images for OpenAI by downloading them and converting to File objects
+ */
+async function prepareImagesForOpenAI(imageUrls: string[], supabase: any, supabaseUrl: string): Promise<File[]> {
+  const imageBlobs: Array<Blob | null> = await Promise.all(
+    imageUrls.map(url => downloadImageFromUrl(url, supabase, supabaseUrl))
+  );
+  
+  // Filter out null blobs and convert to File objects
+  return imageBlobs
+    .filter((blob): blob is Blob => blob !== null)
+    .map((blob, index) => {
+      return new File([blob], `reference_${index}.png`, { type: "image/png" });
+    });
+}
+
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -137,53 +198,9 @@ Deno.serve(async (req: Request) => {
       referenceUrls.push(session.reference_ad_url);
     }
     
-    // Download reference images
-    const imageBlobs = [];
-    for (const url of referenceUrls) {
-      try {
-        // For external URLs, fetch directly
-        if (!url.includes(supabaseUrl)) {
-          const response = await fetch(url);
-          if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
-          const blob = await response.blob();
-          imageBlobs.push(blob);
-        } else {
-          // For Supabase URLs, extract bucket and path
-          const urlPath = new URL(url).pathname;
-          const parts = urlPath.split('/');
-          const bucketIndex = parts.indexOf("public") + 1;
-          
-          if (bucketIndex <= 0) {
-            throw new Error('Invalid URL format');
-          }
-          
-          const bucket = parts[bucketIndex];
-          const path = parts.slice(bucketIndex + 1).join('/');
-          
-          // Download from Supabase Storage
-          const { data: fileData, error } = await supabase.storage
-            .from(bucket)
-            .download(path);
-            
-          if (error) {
-            throw new Error(`Failed to download reference image: ${error.message}`);
-          }
-          
-          if (!fileData) {
-            throw new Error('No file data returned from storage');
-          }
-          
-          imageBlobs.push(fileData);
-        }
-      } catch (error) {
-        console.error(`Error downloading reference image ${url}:`, error);
-      }
-    }
-    
-    // Convert to file objects
-    const imageFiles = imageBlobs.map((blob, index) => {
-      return new File([blob], `reference_${index}.png`, { type: "image/png" });
-    });
+    // Download reference images using our helper function
+    const imageFiles = await prepareImagesForOpenAI(referenceUrls, supabase, supabaseUrl);
+    console.log(`Prepared ${imageFiles.length} images for OpenAI API`);
     
     try {
       // Call OpenAI to generate image

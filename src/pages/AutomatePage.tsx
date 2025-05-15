@@ -30,7 +30,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { uploadImageFile } from '@/services/imageService';
+import { createAutomationSession, generatePrompts } from '@/services/automationService';
 import { Progress } from '@/components/ui/progress';
 
 interface Session {
@@ -223,14 +223,8 @@ export default function AutomatePage() {
     try {
       setIsSubmitting(true);
       
-      // Upload images first
-      let productImageUrl = '';
-      let brandLogoUrl = '';
-      let referenceAdUrl = '';
-      
-      if (productImage.length > 0) {
-        productImageUrl = await uploadImageFile(productImage[0]);
-      } else {
+      // Validate required fields
+      if (productImage.length === 0) {
         toast({
           title: "Product image required",
           description: "Please upload a product image to continue",
@@ -240,44 +234,19 @@ export default function AutomatePage() {
         return;
       }
       
-      if (brandLogo.length > 0) {
-        brandLogoUrl = await uploadImageFile(brandLogo[0]);
-      }
-      
-      if (referenceAd.length > 0) {
-        referenceAdUrl = await uploadImageFile(referenceAd[0]);
-      }
-      
-      // Call the edge function to create a session
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-automation-session`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          productImageUrl,
-          brandLogoUrl: brandLogoUrl || null,
-          referenceAdUrl: referenceAdUrl || null,
-          instructions: instructions || null,
-          variationCount: parseInt(variationCount, 10),
-        }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create automation session');
-      }
-      
-      const { session } = await response.json();
+      // Create automation session
+      const sessionId = await createAutomationSession(
+        productImage[0],
+        brandLogo.length > 0 ? brandLogo[0] : null,
+        referenceAd.length > 0 ? referenceAd[0] : null,
+        instructions,
+        parseInt(variationCount, 10)
+      );
       
       setCurrentSession({
-        id: session.id,
-        status: session.status,
-        productImageUrl,
-        brandLogoUrl,
-        referenceAdUrl,
-        instructions,
+        id: sessionId,
+        status: 'draft',
+        productImageUrl: 'placeholder', // Will be updated with real URLs later
         variationCount: parseInt(variationCount, 10),
         created_at: new Date().toISOString(),
       });
@@ -291,7 +260,7 @@ export default function AutomatePage() {
       setActiveTab("progress");
       
       // Start generating prompts
-      await generatePrompts(session.id);
+      await generatePrompts(sessionId);
       
     } catch (error) {
       console.error('Error creating session:', error);
@@ -302,52 +271,6 @@ export default function AutomatePage() {
       });
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const generatePrompts = async (sessionId: string) => {
-    try {
-      // Call the edge function to generate prompts
-      setProgress(25); // Update progress to show we're generating prompts
-      
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-prompt-variations`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          sessionId,
-        }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to generate prompts');
-      }
-      
-      // Update progress
-      setProgress(50);
-      
-      // Fetch the prompt variations
-      fetchPromptVariations(sessionId);
-      
-    } catch (error) {
-      console.error('Error generating prompts:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "An unexpected error occurred",
-        variant: "destructive"
-      });
-      
-      // Update the session status to failed
-      await supabase
-        .from('automation_sessions')
-        .update({
-          status: 'failed',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', sessionId);
     }
   };
 

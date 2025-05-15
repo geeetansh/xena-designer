@@ -32,6 +32,66 @@ export interface GenerationJob {
   error_message?: string;
 }
 
+/**
+ * Prepares images for automation by uploading them to Supabase storage
+ * @param productImage The product image file (required)
+ * @param brandLogo The brand logo file (optional)
+ * @param referenceAd The reference ad file (optional)
+ * @returns Object with URLs for the uploaded images
+ */
+export async function prepareAutomationImages(
+  productImage: File,
+  brandLogo?: File | null,
+  referenceAd?: File | null
+): Promise<{
+  productImageUrl: string;
+  brandLogoUrl?: string;
+  referenceAdUrl?: string;
+}> {
+  // Create an array of all files to upload
+  const filesToUpload: Array<{file: File, type: 'product' | 'logo' | 'reference'}> = [];
+  
+  if (productImage) {
+    filesToUpload.push({ file: productImage, type: 'product' });
+  }
+  
+  if (brandLogo) {
+    filesToUpload.push({ file: brandLogo, type: 'logo' });
+  }
+  
+  if (referenceAd) {
+    filesToUpload.push({ file: referenceAd, type: 'reference' });
+  }
+  
+  // Upload all files in parallel
+  const uploadPromises = filesToUpload.map(({ file, type }) => 
+    uploadImageFile(file).then(url => ({ url, type }))
+  );
+  
+  const uploadResults = await Promise.all(uploadPromises);
+  
+  // Extract URLs by type
+  const result: {
+    productImageUrl: string;
+    brandLogoUrl?: string;
+    referenceAdUrl?: string;
+  } = {
+    productImageUrl: '',
+  };
+  
+  uploadResults.forEach(({ url, type }) => {
+    if (type === 'product') {
+      result.productImageUrl = url;
+    } else if (type === 'logo') {
+      result.brandLogoUrl = url;
+    } else if (type === 'reference') {
+      result.referenceAdUrl = url;
+    }
+  });
+  
+  return result;
+}
+
 export async function createAutomationSession(
   productImage: File,
   brandLogo?: File | null,
@@ -40,17 +100,16 @@ export async function createAutomationSession(
   variationCount: number = 3
 ): Promise<string> {
   try {
-    // Upload images first
-    const productImageUrl = await uploadImageFile(productImage);
-    let brandLogoUrl = '';
-    let referenceAdUrl = '';
+    // Upload all images first using the new prepareAutomationImages function
+    const {
+      productImageUrl,
+      brandLogoUrl,
+      referenceAdUrl
+    } = await prepareAutomationImages(productImage, brandLogo, referenceAd);
     
-    if (brandLogo) {
-      brandLogoUrl = await uploadImageFile(brandLogo);
-    }
-    
-    if (referenceAd) {
-      referenceAdUrl = await uploadImageFile(referenceAd);
+    // Ensure we have a product image URL
+    if (!productImageUrl) {
+      throw new Error('Failed to upload product image');
     }
     
     // Get the current session
