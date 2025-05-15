@@ -77,6 +77,46 @@ export default function NewAssetPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
   
+  // Preset product images
+  const presetProductImages = [
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6825431e0e40163357b11503_tshirt.png",
+      alt: "T-shirt"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6825431d7de2ecdc9752ab83_chips.png",
+      alt: "Chips"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6825431d247c1a4fe5715a7a_tinned%20seafood.png",
+      alt: "Tinned seafood"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6825431d6ca848a38e4c351e_wallet.png",
+      alt: "Wallet"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6825431dcfcaed5d40724f24_olipop%20soda.png",
+      alt: "Olipop soda"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6825431df1682e2c71a58b1f_decor.png",
+      alt: "Decor"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6825431d04cb73592f9b5cb6_glossier%20balm.png",
+      alt: "Glossier balm"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6825431d69a16680c6922986_women%20shoes.png",
+      alt: "Women shoes"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6825431d5468408b5477b52a_table.png",
+      alt: "Table"
+    }
+  ];
+  
   // Load instructions when component mounts
   useEffect(() => {
     loadInstructions();
@@ -150,6 +190,17 @@ export default function NewAssetPage() {
       setProductImage(null);
       setProductImageUrl(url);
     }
+    
+    // Automatically proceed to next step after selecting product image
+    if (currentStep === 2) {
+      setCurrentStep(3);
+    }
+  };
+  
+  // Handle preset image selection
+  const handlePresetImageSelected = (url: string) => {
+    setProductImage(null);
+    setProductImageUrl(url);
     
     // Automatically proceed to next step after selecting product image
     if (currentStep === 2) {
@@ -322,7 +373,7 @@ export default function NewAssetPage() {
       case 1:
         return "What would you like to create?";
       case 2:
-        return "Select your product image";
+        return "Select product image";
       case 3:
         return "Add a reference image";
       case 4:
@@ -342,7 +393,7 @@ export default function NewAssetPage() {
       case 1:
         return "Choose the type of asset you want to create";
       case 2:
-        return "Choose the product you wish to transform. High-quality PNG photos will result in the best output.";
+        return "Upload the product you wish to transform or choose from sample preset. High-quality PNG photos will result in the best output.";
       case 3:
         return "Optionally add a reference image to guide the style of your asset.";
       case 4:
@@ -509,20 +560,34 @@ export default function NewAssetPage() {
               </div>
             ) : (
               <div className="flex flex-col items-center w-full">
-                <div className="w-full border-2 border-dashed rounded-lg p-6 md:p-10 flex flex-col items-center justify-center text-center">
-                  <Upload className="h-10 w-10 md:h-16 md:w-16 text-muted-foreground mb-3 md:mb-6" />
-                  <h3 className="text-lg md:text-xl font-medium mb-2 md:mb-3">Upload Product Image</h3>
-                  <p className="text-xs md:text-sm text-muted-foreground mb-4 md:mb-6 max-w-xs md:max-w-md">
-                    Drag and drop your product image here, or click the button below to browse your files.
-                    The image should be high quality and show your product clearly.
-                  </p>
-                  <Button 
-                    onClick={() => setIsProductSelectorOpen(true)} 
-                    size="sm" 
-                    className="h-8 md:h-10 text-xs md:text-sm"
-                  >
-                    Select product image
-                  </Button>
+                <div className="w-full p-2 md:p-4">
+                  <h3 className="text-sm md:text-lg font-medium mb-2 md:mb-3">Choose a product image</h3>
+                  
+                  <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-4">
+                    {/* Add Upload button as first grid item */}
+                    <div 
+                      className="aspect-square border border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer bg-muted/10 hover:bg-muted/20 transition-colors p-2 md:p-4"
+                      onClick={() => setIsProductSelectorOpen(true)}
+                    >
+                      <ImageIcon className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground mb-1 md:mb-2" />
+                      <span className="text-xs md:text-sm font-medium text-center">Upload Image</span>
+                    </div>
+                    
+                    {/* Add preset product images */}
+                    {presetProductImages.map((image, index) => (
+                      <div 
+                        key={index}
+                        className="aspect-square border rounded-lg overflow-hidden cursor-pointer hover:border-primary transition-all"
+                        onClick={() => handlePresetImageSelected(image.url)}
+                      >
+                        <LazyImage
+                          src={image.url}
+                          alt={image.alt}
+                          className="w-full h-full object-contain p-1 md:p-2"
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
