@@ -117,6 +117,66 @@ export default function NewAssetPage() {
     }
   ];
   
+  // Preset reference images
+  const presetReferenceImages = [
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b21e23d6f431c8259e_reference%20scene%205.png",
+      alt: "Reference Scene 5"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b2ce17a63e6c76c3ff_reference%20scene%203.png",
+      alt: "Reference Scene 3"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b29edc65edaca8647f_reference%20scene%2013.png",
+      alt: "Reference Scene 13"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b2c8cdf01f7f91f2cc_reference%20scene%208.png",
+      alt: "Reference Scene 8"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b2d9c7e4efe0e75b5e_reference%20scene%2014.png",
+      alt: "Reference Scene 14"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b2f2f786d6f8aa3327_reference%20scene%209.png",
+      alt: "Reference Scene 9"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b2f55fd3be87756dc3_reference%20scene%207.png",
+      alt: "Reference Scene 7"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b13973e79578bf492b_reference%20scene%202.png",
+      alt: "Reference Scene 2"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b15e4efdead1d12c21_reference%20scene%2012.png",
+      alt: "Reference Scene 12"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b11e7c5a92ae84d2de_reference%20scene%2011.png",
+      alt: "Reference Scene 11"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b1753b5f462896b7ee_reference%20scene%206.png",
+      alt: "Reference Scene 6"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b19edc65edaca863f5_reference%20scene%201.png",
+      alt: "Reference Scene 1"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b1c0841b0ca5448196_reference%20scene%204.png",
+      alt: "Reference Scene 4"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b128fe17d4fb6b2b51_reference%20scene%2010.png",
+      alt: "Reference Scene 10"
+    }
+  ];
+  
   // Load instructions when component mounts
   useEffect(() => {
     loadInstructions();
@@ -217,6 +277,17 @@ export default function NewAssetPage() {
       setReferenceImage(null);
       setReferenceImageUrl(url);
     }
+    
+    // Automatically proceed to next step after selecting reference image
+    if (currentStep === 3) {
+      setCurrentStep(4);
+    }
+  };
+  
+  // Handle preset reference image selection
+  const handlePresetReferenceImageSelected = (url: string) => {
+    setReferenceImage(null);
+    setReferenceImageUrl(url);
     
     // Automatically proceed to next step after selecting reference image
     if (currentStep === 3) {
@@ -631,28 +702,33 @@ export default function NewAssetPage() {
               </div>
             ) : (
               <div className="flex flex-col items-center w-full">
-                <div className="w-full border-2 border-dashed rounded-lg p-6 md:p-10 flex flex-col items-center justify-center text-center">
-                  <ImageIcon className="h-10 w-10 md:h-16 md:w-16 text-muted-foreground mb-3 md:mb-6" />
-                  <h3 className="text-lg md:text-xl font-medium mb-2 md:mb-3">Upload Reference Image</h3>
-                  <p className="text-xs md:text-sm text-muted-foreground mb-4 md:mb-6 max-w-xs md:max-w-md">
-                    Add a reference image to guide the style of your creation. This step is optional but can help achieve more specific results.
-                  </p>
-                  <div className="flex flex-col md:flex-row gap-2 md:gap-4">
-                    <Button 
+                <div className="w-full p-2 md:p-4">
+                  <h3 className="text-sm md:text-lg font-medium mb-2 md:mb-3">Choose a reference image</h3>
+                  
+                  <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-4">
+                    {/* Add Upload button as first grid item */}
+                    <div 
+                      className="aspect-square border border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer bg-muted/10 hover:bg-muted/20 transition-colors p-2 md:p-4"
                       onClick={() => setIsReferenceSelectorOpen(true)}
-                      size="sm"
-                      className="h-8 md:h-10 text-xs md:text-sm"
                     >
-                      Select reference image
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setCurrentStep(4)}
-                      size="sm"
-                      className="h-8 md:h-10 text-xs md:text-sm"
-                    >
-                      Skip this step
-                    </Button>
+                      <ImageIcon className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground mb-1 md:mb-2" />
+                      <span className="text-xs md:text-sm font-medium text-center">Upload Image</span>
+                    </div>
+                    
+                    {/* Add preset reference images */}
+                    {presetReferenceImages.map((image, index) => (
+                      <div 
+                        key={index}
+                        className="aspect-square border rounded-lg overflow-hidden cursor-pointer hover:border-primary transition-all"
+                        onClick={() => handlePresetReferenceImageSelected(image.url)}
+                      >
+                        <LazyImage
+                          src={image.url}
+                          alt={image.alt}
+                          className="w-full h-full object-cover p-1 md:p-2"
+                        />
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
