@@ -26,6 +26,7 @@ import { LuLibrary } from "react-icons/lu";
 export default function DashboardLayout() {
   const [imageCount, setImageCount] = useState(0);
   const [libraryCount, setLibraryCount] = useState(0);
+  const [staticAdCount, setStaticAdCount] = useState(0);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<{ full_name?: string; email?: string; company_logo?: string } | null>(null);
   const [credits, setCredits] = useState(0);
@@ -86,6 +87,14 @@ export default function DashboardLayout() {
               .eq('source', 'library')
               .then(({ count }) => {
                 if (isMounted) setLibraryCount(count || 0);
+              });
+              
+            // Get static ad count
+            supabase
+              .from('generation_jobs')
+              .select('id', { count: 'exact', head: true })
+              .then(({ count }) => {
+                if (isMounted) setStaticAdCount(count || 0);
               });
           }
         }, 1000);
@@ -186,7 +195,8 @@ export default function DashboardLayout() {
       { 
         id: 'automate', 
         label: 'Static ad', 
-        icon: <FaBullhorn className="h-5 w-5" />
+        icon: <FaBullhorn className="h-5 w-5" />,
+        badge: staticAdCount > 0 ? staticAdCount : undefined
       }
     ],
     others: [
@@ -280,6 +290,11 @@ export default function DashboardLayout() {
               >
                 {item.icon}
                 <span>{item.label}</span>
+                {item.badge !== undefined && (
+                  <Badge variant="secondary" className="ml-auto">
+                    {item.badge}
+                  </Badge>
+                )}
               </NavLink>
             ))}
           </nav>

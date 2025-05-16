@@ -1,3 +1,4 @@
+// stripeService.ts - Services for Stripe integration
 import { supabase } from '@/lib/supabase';
 import { products, getProductByPriceId } from '@/stripe-config';
 

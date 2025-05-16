@@ -75,7 +75,8 @@ export default function AutomatePage() {
             automation_sessions(
               product_image_url,
               reference_ad_url,
-              created_at
+              created_at,
+              layout
             )
           )
         `)
@@ -100,32 +101,6 @@ export default function AutomatePage() {
   const handleViewDetails = (job: GenerationJob) => {
     setSelectedJob(job);
     setIsJobDetailsOpen(true);
-  };
-
-  const handleDownloadImage = async (imageUrl: string, prompt: string) => {
-    try {
-      const response = await fetch(imageUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `xena-ad-${prompt.substring(0, 20).replace(/[^a-z0-9]/gi, '-').toLowerCase()}.png`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      
-      toast({
-        title: "Image downloaded",
-        description: "The ad image has been downloaded successfully"
-      });
-    } catch (error) {
-      console.error('Error downloading image:', error);
-      toast({
-        title: "Download failed",
-        description: "Failed to download the image",
-        variant: "destructive"
-      });
-    }
   };
 
   return (
@@ -178,12 +153,15 @@ export default function AutomatePage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-          {generationJobs.map((job) => (
+          {generationJobs.map((job) => {
+            const layout = job.prompt_variations?.automation_sessions?.layout || 'auto';
+            
+            return (
             <div 
               key={job.id}
               className="relative group overflow-hidden rounded-lg shadow-sm transition-all duration-200 hover:shadow-md"
             >
-              <div className="aspect-square w-full h-full bg-background">
+              <div className={`w-full ${layout === 'portrait' ? 'aspect-[2/3]' : layout === 'landscape' ? 'aspect-[3/2]' : 'aspect-square'} bg-background`}>
                 {job.status === 'failed' ? (
                   <div className="w-full h-full flex items-center justify-center bg-red-50/50 dark:bg-red-900/10">
                     <div className="flex flex-col items-center text-center p-4">
@@ -209,38 +187,20 @@ export default function AutomatePage() {
                 )}
               </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end">
-                <div className="p-3 md:p-4 space-y-1">
-                  <h3 className="text-white font-medium text-xs md:text-sm line-clamp-1">
-                    Generated Ad
-                  </h3>
-                  <p className="text-white/80 text-[10px] md:text-xs">
-                    {job.created_at ? format(new Date(job.created_at), 'MMM d, yyyy') : ''}
-                  </p>
-                  <div className="flex justify-between mt-1 md:mt-2">
-                    <Button 
-                      size="sm" 
-                      variant="secondary"
-                      className="rounded-full shadow-lg text-xs h-7 px-2 md:h-8 md:px-3"
-                      onClick={() => handleViewDetails(job)}
-                    >
-                      <Eye className="h-3 w-3 md:h-4 md:w-4 mr-1" />
-                      View
-                    </Button>
-                    
-                    <Button 
-                      size="sm" 
-                      variant="secondary"
-                      className="rounded-full shadow-lg h-7 w-7 p-0 md:h-8 md:w-8"
-                      onClick={() => job.image_url && handleDownloadImage(job.image_url, job.prompt.substring(0, 30))}
-                      disabled={!job.image_url || job.status !== 'completed'}
-                    >
-                      <Download className="h-3 w-3 md:h-4 md:w-4" />
-                    </Button>
-                  </div>
+                <div className="p-3 md:p-4 flex justify-center">
+                  <Button 
+                    size="sm" 
+                    variant="secondary"
+                    className="rounded-full shadow-lg text-xs h-7 px-2 md:h-8 md:px-3"
+                    onClick={() => handleViewDetails(job)}
+                  >
+                    <Eye className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                    View
+                  </Button>
                 </div>
               </div>
             </div>
-          ))}
+          )})}
         </div>
       )}
 
@@ -282,7 +242,20 @@ export default function AutomatePage() {
                   {/* Download button */}
                   {selectedJob.status === 'completed' && selectedJob.image_url && (
                     <Button 
-                      onClick={() => handleDownloadImage(selectedJob.image_url!, selectedJob.prompt.substring(0, 30))}
+                      onClick={() => {
+                        // Handle download
+                        const a = document.createElement('a');
+                        a.href = selectedJob.image_url!;
+                        a.download = `xena-ad-${selectedJob.prompt.substring(0, 30)}.png`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        
+                        toast({
+                          title: "Image downloaded",
+                          description: "The ad image has been downloaded successfully"
+                        });
+                      }}
                       className="w-full"
                     >
                       <Download className="mr-2 h-4 w-4" />
