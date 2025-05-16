@@ -388,23 +388,6 @@ Deno.serve(async (req: Request) => {
           url: storedImageUrl,
           prompt,
           user_id: userId,
-          raw_json: JSON.stringify({
-            input: {
-              prompt,
-              referenceImageUrls,
-              size
-            },
-            output: result,
-            processing: {
-              steps: [
-                "1. Retrieved task from database",
-                "2. Downloaded reference images",
-                `3. Generated image with OpenAI (size: ${openAISize})`,
-                "4. Uploaded result to storage"
-              ],
-              performance: performanceMetrics
-            }
-          }),
           variation_group_id: task.batch_id,
           variation_index: task.batch_index,
           created_at: new Date().toISOString()
@@ -428,7 +411,6 @@ Deno.serve(async (req: Request) => {
         .update({
           status: "completed",
           result_image_url: storedImageUrl,
-          raw_response: JSON.stringify(result),
           updated_at: new Date().toISOString()
         })
         .eq("id", taskId);

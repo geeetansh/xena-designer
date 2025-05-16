@@ -1,4 +1,4 @@
-import OpenAI from "npm:openai@4.98.0";
+import OpenAI from "npm:openai@4.36.0";
 import { createClient } from "npm:@supabase/supabase-js@2.39.8";
 import { v4 as uuidv4 } from "npm:uuid@9.0.1";
 
@@ -387,7 +387,7 @@ Deno.serve(async (req: Request) => {
           // Upload to storage
           const { data: uploadData, error: uploadError } = await supabase.storage
             .from("images")
-            .upload(imagePath, binaryData, {
+            .upload(imagePath, binaryData.buffer, {
               contentType: "image/png",
               upsert: true
             });
@@ -638,7 +638,7 @@ Deno.serve(async (req: Request) => {
         // Upload to storage
         const { data: fallbackUpload } = await supabase.storage
           .from("images")
-          .upload(fallbackPath, fallbackBinary, {
+          .upload(fallbackPath, fallbackBinary.buffer, {
             contentType: "image/png",
             upsert: true
           });

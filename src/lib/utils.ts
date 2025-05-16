@@ -36,9 +36,9 @@ export function mapLayoutToOpenAISize(layout: string): string {
     case 'square':
       return '1024x1024';
     case 'landscape':
-      return '1536x1024'; // OpenAI supported landscape size
+      return '1536x1024'; // Fixed: Using OpenAI's supported landscape size
     case 'portrait':
-      return '1024x1536'; // OpenAI supported portrait size
+      return '1024x1536'; // Fixed: Using OpenAI's supported portrait size
     case 'auto':
     default:
       return '1024x1024'; // Default to square for reliability
