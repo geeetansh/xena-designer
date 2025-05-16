@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import Masonry from 'react-masonry-css';
 import {
   Dialog,
   DialogContent,
@@ -46,6 +47,14 @@ export default function AutomatePage() {
   const latestJobsRef = useRef<GenerationJob[]>([]);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Masonry breakpoints
+  const breakpointColumnsObj = {
+    default: 4,
+    1100: 3,
+    700: 2,
+    500: 1
+  };
 
   // Load recent jobs on mount
   useEffect(() => {
@@ -152,42 +161,45 @@ export default function AutomatePage() {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+        <Masonry
+          breakpointCols={breakpointColumnsObj}
+          className="flex w-auto -ml-4"
+          columnClassName="pl-4 bg-clip-padding"
+        >
           {generationJobs.map((job) => {
             const layout = job.prompt_variations?.automation_sessions?.layout || 'auto';
             
             return (
-            <div 
-              key={job.id}
-              className="relative group overflow-hidden rounded-lg shadow-sm transition-all duration-200 hover:shadow-md"
-            >
-              <div className={`w-full ${layout === 'portrait' ? 'aspect-[2/3]' : layout === 'landscape' ? 'aspect-[3/2]' : 'aspect-square'} bg-background`}>
-                {job.status === 'failed' ? (
-                  <div className="w-full h-full flex items-center justify-center bg-red-50/50 dark:bg-red-900/10">
-                    <div className="flex flex-col items-center text-center p-4">
-                      <AlertTriangle className="h-8 w-8 text-red-500 mb-2" />
-                      <span className="text-xs text-red-600">Generation failed</span>
+              <div 
+                key={job.id}
+                className="mb-4 relative group overflow-hidden rounded-lg shadow-sm transition-all duration-200 hover:shadow-md"
+              >
+                <div className={`w-full ${layout === 'portrait' ? 'aspect-[2/3]' : layout === 'landscape' ? 'aspect-[3/2]' : 'aspect-square'} bg-background`}>
+                  {job.status === 'failed' ? (
+                    <div className="w-full h-full flex items-center justify-center bg-red-50/50 dark:bg-red-900/10">
+                      <div className="flex flex-col items-center text-center p-4">
+                        <AlertTriangle className="h-8 w-8 text-red-500 mb-2" />
+                        <span className="text-xs text-red-600">Generation failed</span>
+                      </div>
                     </div>
-                  </div>
-                ) : job.status === 'completed' && job.image_url ? (
-                  <LazyImage
-                    src={job.image_url}
-                    alt="Generated ad"
-                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-muted/30">
-                    <div className="animate-pulse flex flex-col items-center">
-                      <Loader2 className="h-8 w-8 text-muted-foreground animate-spin" />
-                      <span className="mt-2 text-xs text-muted-foreground">
-                        {job.status}
-                      </span>
+                  ) : job.status === 'completed' && job.image_url ? (
+                    <LazyImage
+                      src={job.image_url}
+                      alt="Generated ad"
+                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-muted/30">
+                      <div className="animate-pulse flex flex-col items-center">
+                        <Loader2 className="h-8 w-8 text-muted-foreground animate-spin" />
+                        <span className="mt-2 text-xs text-muted-foreground">
+                          {job.status}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end">
-                <div className="p-3 md:p-4 flex justify-center">
+                  )}
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
                   <Button 
                     size="sm" 
                     variant="secondary"
@@ -199,9 +211,9 @@ export default function AutomatePage() {
                   </Button>
                 </div>
               </div>
-            </div>
-          )})}
-        </div>
+            );
+          })}
+        </Masonry>
       )}
 
       {/* Image Details Dialog */}
