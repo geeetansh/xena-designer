@@ -265,6 +265,26 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
     {
       url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6825431d6ca848a38e4c351e_wallet.png",
       alt: "Wallet"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6825431dcfcaed5d40724f24_olipop%20soda.png",
+      alt: "Olipop soda"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6825431df1682e2c71a58b1f_decor.png",
+      alt: "Decor"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6825431d04cb73592f9b5cb6_glossier%20balm.png",
+      alt: "Glossier balm"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6825431d69a16680c6922986_women%20shoes.png",
+      alt: "Women shoes"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6825431d5468408b5477b52a_table.png",
+      alt: "Table"
     }
   ];
   
@@ -285,9 +305,49 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
     {
       url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b2c8cdf01f7f91f2cc_reference%20scene%208.png",
       alt: "Reference Scene 8"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b2d9c7e4efe0e75b5e_reference%20scene%2014.png",
+      alt: "Reference Scene 14"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b2f2f786d6f8aa3327_reference%20scene%209.png",
+      alt: "Reference Scene 9"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b2f55fd3be87756dc3_reference%20scene%207.png",
+      alt: "Reference Scene 7"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b13973e79578bf492b_reference%20scene%202.png",
+      alt: "Reference Scene 2"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b15e4efdead1d12c21_reference%20scene%2012.png",
+      alt: "Reference Scene 12"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b11e7c5a92ae84d2de_reference%20scene%2011.png",
+      alt: "Reference Scene 11"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b1753b5f462896b7ee_reference%20scene%206.png",
+      alt: "Reference Scene 6"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b19edc65edaca863f5_reference%20scene%201.png",
+      alt: "Reference Scene 1"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b1c0841b0ca5448196_reference%20scene%204.png",
+      alt: "Reference Scene 4"
+    },
+    {
+      url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b128fe17d4fb6b2b51_reference%20scene%2010.png",
+      alt: "Reference Scene 10"
     }
   ];
-
+  
   // Handle preset image selection
   const handlePresetProductImageSelected = (url: string) => {
     setProductImage(null);
@@ -464,13 +524,13 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
       
       case 2:
         return (
-          <div className="max-w-xs md:max-w-2xl mx-auto mt-4 md:mt-8">
+          <div className="max-w-xs md:max-w-2xl mx-auto mt-4 md:mt-8">            
             {referenceAdUrl ? (
               <div className="border rounded-lg p-4 md:p-8 space-y-4 md:space-y-6 text-center">
                 <div className="w-[200px] md:w-[250px] h-[200px] md:h-[250px] mx-auto">
                   <LazyImage 
                     src={referenceAdUrl}
-                    alt="Reference Ad"
+                    alt="Reference"
                     className="w-full h-full object-contain border rounded-md"
                   />
                 </div>
@@ -532,7 +592,7 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
             )}
           </div>
         );
-      
+        
       case 3:
         return (
           <div className="max-w-xs md:max-w-2xl mx-auto mt-4 md:mt-8">
