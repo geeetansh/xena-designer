@@ -209,6 +209,15 @@ export default function AutomationBuilderPage() {
           const filename = productImageUrl.split('/').pop() || 'product.jpg';
           productImageFile = await urlToFile(productImageUrl, filename);
           console.log('Successfully converted product image URL to File object');
+          
+          // Redirect to /automate immediately after successful URL to File conversion
+          toast({
+            title: 'Campaign started',
+            description: 'Your automated ad campaign is being generated. Redirecting to results page...'
+          });
+          
+          navigate('/automate');
+          return;
         } catch (error) {
           console.error('Error converting product image URL to File:', error);
           throw new Error("Failed to process product image. Please try uploading a different image.");
@@ -256,24 +265,8 @@ export default function AutomationBuilderPage() {
       // Start generating prompts
       await generatePrompts(sessionId);
       
-      // Show progress updates
-      setProgress(10);
-      
-      // Simulate progress updates for better UX
-      const interval = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 95) {
-            clearInterval(interval);
-            return 100;
-          }
-          return prev + 5;
-        });
-      }, 1000);
-      
-      // Navigate to the automate page to see results after a short delay
-      setTimeout(() => {
-        navigate('/automate');
-      }, 3000);
+      // Navigate to the automate page
+      navigate('/automate');
       
     } catch (error) {
       console.error("Error creating automation:", error);

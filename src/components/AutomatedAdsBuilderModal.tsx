@@ -131,6 +131,21 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
           // Extract filename from URL to preserve file extension
           const filename = productImageUrl.split('/').pop() || 'product.jpg';
           productImageFile = await urlToFile(productImageUrl, filename);
+          console.log('Successfully converted product image URL to File object');
+          
+          // Immediately redirect to /automate page after successful URL to File conversion
+          toast({
+            title: 'Campaign started',
+            description: 'Your ad campaign is being generated.'
+          });
+          
+          // Navigate to the static ads page (/automate)
+          navigate('/automate');
+          
+          // Close the modal
+          onOpenChange(false);
+          
+          return;
         } catch (error) {
           console.error('Error converting product image URL to File:', error);
           throw new Error("Failed to process product image. Please try uploading a different image.");
@@ -607,7 +622,7 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
             </div>
           </div>
         );
-      
+        
       default:
         return null;
     }
