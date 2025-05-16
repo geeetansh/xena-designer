@@ -1,5 +1,6 @@
 import OpenAI from "npm:openai@4.98.0";
 import { createClient } from "npm:@supabase/supabase-js@2.39.8";
+import { z } from "npm:zod@3.23.8";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,6 +11,11 @@ const corsHeaders = {
 // Initialize OpenAI with environment variables
 const openai = new OpenAI({
   apiKey: Deno.env.get("VITE_OPENAI_API_KEY")
+});
+
+// Define schema for prompt generation response
+const promptsSchema = z.object({
+  prompts: z.array(z.string().min(10)).min(1).max(10),
 });
 
 /**
@@ -220,19 +226,10 @@ Each prompt should:
 3. Describe lighting, background, and overall composition
 4. Include marketing-oriented details like suggested text positioning or themes
 
-Format your response as a valid JSON with a "prompts" field containing an array of strings, each string being a complete prompt. Example:
-\`\`\`json
-{
-  "prompts": [
-    "Create a professional product advertisement for...",
-    "Design a lifestyle marketing image featuring...",
-    "Generate a minimalist product showcase with..."
-  ]
-}
-\`\`\``;
+Your output MUST follow the specified JSON format with a "prompts" array containing strings.`;
 
-    // Call ChatGPT to generate prompts, including images when available
-    console.log("Calling OpenAI API with model: o4-mini");
+    // Call GPT-4o with structured outputs
+    console.log("Calling OpenAI API with model: gpt-4o-2024-11-20 and structured outputs");
     let chatResponse;
     
     // Different API call depending on whether we have images or not
@@ -257,17 +254,23 @@ Format your response as a valid JSON with a "prompts" field containing an array 
       ];
       
       chatResponse = await openai.chat.completions.create({
-        model: "o4-mini",
-        messages: messages
+        model: "gpt-4o-2024-11-20", // Updated to latest model
+        messages: messages,
+        response_format: { type: "json_object", schema: promptsSchema.shape },
+        top_p: 0.7, // Lower value for more focused outputs
+        temperature: 0.9  // Maintain creativity
       });
     } else {
       console.log("No images available, using text-only OpenAI request");
       chatResponse = await openai.chat.completions.create({
-        model: "o4-mini",
+        model: "gpt-4o-2024-11-20", // Updated to latest model
         messages: [
           { role: "system", content: systemMessage },
           { role: "user", content: userMessageContent }
-        ]
+        ],
+        response_format: { type: "json_object", schema: promptsSchema.shape },
+        top_p: 0.7, // Lower value for more focused outputs
+        temperature: 0.9  // Maintain creativity
       });
     }
     
@@ -286,6 +289,15 @@ Format your response as a valid JSON with a "prompts" field containing an array 
       console.error("Failed to parse JSON response:", parseError);
       console.log("Raw response:", responseContent);
       throw new Error(`Failed to parse OpenAI response as JSON: ${parseError.message}`);
+    }
+    
+    // Validate with Zod schema
+    try {
+      const validatedResponse = promptsSchema.parse(parsedResponse);
+      console.log(`Validated response with ${validatedResponse.prompts.length} prompts`);
+    } catch (validationError) {
+      console.error("Schema validation error:", validationError);
+      throw new Error(`Response did not match expected schema: ${validationError.message}`);
     }
     
     const { data: responseRecord, error: responseError } = await supabase
