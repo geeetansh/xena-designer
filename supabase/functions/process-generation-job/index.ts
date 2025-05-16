@@ -96,12 +96,12 @@ function mapLayoutToOpenAISize(layout: string): string {
     case 'square':
       return '1024x1024';
     case 'landscape':
-      return '1792x1024';
+      return '1536x1024';
     case 'portrait':
-      return '1024x1792';
+      return '1024x1536';
     case 'auto':
     default:
-      return '1024x1024'; // Default to square
+      return 'auto';
   }
 }
 
