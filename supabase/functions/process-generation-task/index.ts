@@ -25,7 +25,7 @@ function mapSizeToOpenAI(size: string): string {
     case 'auto':
       return '1024x1024';  // Default to square for auto
     default:
-      return '1024x1024'; // Default to square if not specified
+      return 'auto'; // Default to square if not specified
   }
 }
 
