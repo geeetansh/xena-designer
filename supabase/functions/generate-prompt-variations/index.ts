@@ -1,6 +1,5 @@
 import OpenAI from "npm:openai@4.98.0";
 import { createClient } from "npm:@supabase/supabase-js@2.39.8";
-import { z } from "npm:zod@3.23.8";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,11 +10,6 @@ const corsHeaders = {
 // Initialize OpenAI with environment variables
 const openai = new OpenAI({
   apiKey: Deno.env.get("VITE_OPENAI_API_KEY")
-});
-
-// Define schema for prompt generation response
-const promptsSchema = z.object({
-  prompts: z.array(z.string().min(10)).min(1).max(10),
 });
 
 /**
@@ -256,7 +250,7 @@ Your output MUST follow the specified JSON format with a "prompts" array contain
       chatResponse = await openai.chat.completions.create({
         model: "gpt-4o-2024-11-20", // Updated to latest model
         messages: messages,
-        response_format: { type: "json_object", schema: promptsSchema.shape },
+        response_format: { type: "json_object" },
         top_p: 0.7, // Lower value for more focused outputs
         temperature: 0.9  // Maintain creativity
       });
@@ -268,7 +262,7 @@ Your output MUST follow the specified JSON format with a "prompts" array contain
           { role: "system", content: systemMessage },
           { role: "user", content: userMessageContent }
         ],
-        response_format: { type: "json_object", schema: promptsSchema.shape },
+        response_format: { type: "json_object" },
         top_p: 0.7, // Lower value for more focused outputs
         temperature: 0.9  // Maintain creativity
       });
@@ -291,14 +285,13 @@ Your output MUST follow the specified JSON format with a "prompts" array contain
       throw new Error(`Failed to parse OpenAI response as JSON: ${parseError.message}`);
     }
     
-    // Validate with Zod schema
-    try {
-      const validatedResponse = promptsSchema.parse(parsedResponse);
-      console.log(`Validated response with ${validatedResponse.prompts.length} prompts`);
-    } catch (validationError) {
-      console.error("Schema validation error:", validationError);
-      throw new Error(`Response did not match expected schema: ${validationError.message}`);
+    // Validate the response format
+    if (!parsedResponse.prompts || !Array.isArray(parsedResponse.prompts)) {
+      throw new Error(`Expected a 'prompts' array in the response, but got: ${JSON.stringify(parsedResponse)}`);
     }
+    
+    const promptsArray = parsedResponse.prompts;
+    console.log(`Response contains ${promptsArray.length} prompts`);
     
     const { data: responseRecord, error: responseError } = await supabase
       .from('prompt_generation_responses')
@@ -320,8 +313,6 @@ Your output MUST follow the specified JSON format with a "prompts" array contain
 
     // Parse the JSON response
     try {
-      const promptsArray = parsedResponse.prompts;
-      
       if (!promptsArray || !Array.isArray(promptsArray)) {
         throw new Error(`Expected an array of prompts, got: ${JSON.stringify(parsedResponse)}`);
       }
