@@ -88,6 +88,23 @@ async function prepareImagesForOpenAI(imageUrls: string[], supabase: any, supaba
   return files;
 }
 
+/**
+ * Maps layout type to OpenAI supported size
+ */
+function mapLayoutToOpenAISize(layout: string): string {
+  switch(layout) {
+    case 'square':
+      return '1024x1024';
+    case 'landscape':
+      return '1792x1024';
+    case 'portrait':
+      return '1024x1792';
+    case 'auto':
+    default:
+      return '1024x1024'; // Default to square
+  }
+}
+
 Deno.serve(async (req: Request) => {
   // Generate unique execution ID for logging
   const executionId = uuidv4().substring(0, 8);
@@ -160,7 +177,8 @@ Deno.serve(async (req: Request) => {
         automation_sessions!inner(
           product_image_url, 
           brand_logo_url, 
-          reference_ad_url
+          reference_ad_url,
+          layout
         )
       `)
       .eq('id', variationId)
@@ -177,6 +195,7 @@ Deno.serve(async (req: Request) => {
     console.log(`[${executionId}] Variation fetched successfully in ${((Date.now() - fetchStart) / 1000).toFixed(2)}s`);
     console.log(`[${executionId}] Session ID: ${variation.session_id}`);
     console.log(`[${executionId}] Prompt length: ${variation.prompt.length} characters`);
+    console.log(`[${executionId}] Layout: ${variation.automation_sessions.layout || 'auto'}`);
     
     // Find the job
     console.log(`[${executionId}] Fetching job data`);
@@ -262,6 +281,13 @@ Deno.serve(async (req: Request) => {
     console.log(`[${executionId}] Prepared ${imageFiles.length}/${referenceUrls.length} images in ${((Date.now() - downloadStart) / 1000).toFixed(2)}s`);
     
     try {
+      // Get the layout from session or default to 'auto'
+      const layout = session.layout || 'auto';
+      
+      // Map the layout to OpenAI size format
+      const openAISize = mapLayoutToOpenAISize(layout);
+      console.log(`[${executionId}] Using layout: ${layout}, OpenAI size: ${openAISize}`);
+      
       // Call OpenAI to generate image
       console.log(`[${executionId}] Calling OpenAI API to generate image`);
       console.log(`[${executionId}] Using prompt (first 100 chars): ${variation.prompt.substring(0, 100)}...`);
@@ -278,7 +304,7 @@ Deno.serve(async (req: Request) => {
           prompt: variation.prompt,
           image: imageFiles,
           quality: "high",
-          size: "1024x1024"
+          size: openAISize
         });
       } 
       // Otherwise use text-to-image endpoint
@@ -288,7 +314,7 @@ Deno.serve(async (req: Request) => {
           model: "gpt-image-1",
           prompt: variation.prompt,
           quality: "high",
-          size: "1024x1024"
+          size: openAISize
         });
       }
       

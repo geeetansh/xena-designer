@@ -9,6 +9,9 @@ import {
   Sparkles,
   Image as ImageIcon,
 } from 'lucide-react';
+import { FaRegSquare } from "react-icons/fa";
+import { LuRectangleHorizontal, LuRectangleVertical } from "react-icons/lu";
+import { MdOutlineAutoAwesome } from "react-icons/md";
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -29,6 +32,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 import { createAutomationSession, generatePrompts } from '@/services/automationService';
 
 interface Session {
@@ -59,6 +68,7 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
   const [referenceAd, setReferenceAd] = useState<File | null>(null);
   const [referenceAdUrl, setReferenceAdUrl] = useState<string | null>(null);
   const [variationCount, setVariationCount] = useState('3');
+  const [selectedLayout, setSelectedLayout] = useState<string>("auto");
 
   // Modal states
   const [isProductSelectorOpen, setIsProductSelectorOpen] = useState(false);
@@ -81,6 +91,7 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
       setReferenceAd(null);
       setReferenceAdUrl(null);
       setVariationCount('3');
+      setSelectedLayout("auto");
       setCurrentSession(null);
       setProgress(0);
       setIsSubmitting(false);
@@ -160,7 +171,8 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
         null, // No brand logo for now
         referenceAdFile,
         "", // No instructions for now
-        parseInt(variationCount, 10)
+        parseInt(variationCount, 10),
+        selectedLayout // Pass the selected layout
       );
       
       setCurrentSession({
@@ -356,7 +368,7 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
       case 2:
         return "Add a reference ad";
       case 3:
-        return "Choose variations";
+        return "Choose layout and variations";
       default:
         return "";
     }
@@ -370,7 +382,7 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
       case 2:
         return "Optionally add a reference ad to guide the style of your generated assets.";
       case 3:
-        return "Choose the number of ad variations to generate.";
+        return "Choose the layout and number of ad variations to generate.";
       default:
         return "";
     }
@@ -524,84 +536,181 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
       case 3:
         return (
           <div className="max-w-xs md:max-w-2xl mx-auto mt-4 md:mt-8">
-            <div className="space-y-6 md:space-y-8">
-              <div className="space-y-4 md:space-y-6 p-3 md:p-6 border rounded-lg">
-                <div className="space-y-2 md:space-y-3">
-                  <h3 className="text-sm md:text-lg font-medium">Number of Variations</h3>
-                  <p className="text-xs md:text-sm text-muted-foreground">Choose how many different ad variations to generate</p>
-                  <Select 
-                    value={variationCount} 
-                    onValueChange={setVariationCount}
-                  >
-                    <SelectTrigger className="w-full text-xs md:text-sm h-9 md:h-10">
-                      <SelectValue placeholder="3 variations" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">1 variation</SelectItem>
-                      <SelectItem value="2">2 variations</SelectItem>
-                      <SelectItem value="3">3 variations</SelectItem>
-                      <SelectItem value="5">5 variations</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
-                  <p className="text-[10px] md:text-xs text-muted-foreground mt-1 md:mt-2">
-                    Each variation costs 1 credit. You will use {variationCount} credit{parseInt(variationCount) > 1 ? 's' : ''} for this generation.
-                  </p>
-                </div>
+            <div className="space-y-6 md:space-y-8 p-3 md:p-6 border rounded-lg">
+              {/* Layout selection */}
+              <div className="space-y-2 md:space-y-3">
+                <h3 className="text-sm md:text-lg font-medium">Choose layout</h3>
+                <p className="text-xs md:text-sm text-muted-foreground">Select the shape and format of your generated ads</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mt-2">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={cn(
+                            "flex flex-col items-center p-2 md:p-4 rounded-lg cursor-pointer border-2 transition-all",
+                            selectedLayout === "square" 
+                              ? "border-primary bg-primary/5" 
+                              : "border-border hover:border-primary/50"
+                          )}
+                          onClick={() => setSelectedLayout("square")}
+                        >
+                          <FaRegSquare className="h-8 w-8 md:h-12 md:w-12 mb-1 md:mb-2" />
+                          <span className="font-medium text-xs md:text-base">Square</span>
+                          <span className="text-[10px] md:text-xs text-muted-foreground mt-0.5 md:mt-1">1:1</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Square (1:1)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
 
-                {/* Summary section */}
-                <div className="pt-4 mt-4 border-t">
-                  <h3 className="text-sm md:text-lg font-medium mb-3">Summary</h3>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* Product image summary */}
-                    {productImageUrl && (
-                      <div className="space-y-2">
-                        <p className="text-xs text-muted-foreground">Product Image</p>
-                        <div className="aspect-square border rounded-lg overflow-hidden">
-                          <LazyImage 
-                            src={productImageUrl}
-                            alt="Product"
-                            className="w-full h-full object-contain"
-                          />
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={cn(
+                            "flex flex-col items-center p-2 md:p-4 rounded-lg cursor-pointer border-2 transition-all",
+                            selectedLayout === "landscape" 
+                              ? "border-primary bg-primary/5" 
+                              : "border-border hover:border-primary/50"
+                          )}
+                          onClick={() => setSelectedLayout("landscape")}
+                        >
+                          <LuRectangleHorizontal className="h-8 w-8 md:h-12 md:w-12 mb-1 md:mb-2" />
+                          <span className="font-medium text-xs md:text-base">Landscape</span>
+                          <span className="text-[10px] md:text-xs text-muted-foreground mt-0.5 md:mt-1">3:2</span>
                         </div>
-                      </div>
-                    )}
-                    
-                    {/* Reference ad summary */}
-                    {referenceAdUrl && (
-                      <div className="space-y-2">
-                        <p className="text-xs text-muted-foreground">Reference Ad</p>
-                        <div className="aspect-square border rounded-lg overflow-hidden">
-                          <LazyImage 
-                            src={referenceAdUrl}
-                            alt="Reference"
-                            className="w-full h-full object-cover"
-                          />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Landscape (3:2)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={cn(
+                            "flex flex-col items-center p-2 md:p-4 rounded-lg cursor-pointer border-2 transition-all",
+                            selectedLayout === "portrait" 
+                              ? "border-primary bg-primary/5" 
+                              : "border-border hover:border-primary/50"
+                          )}
+                          onClick={() => setSelectedLayout("portrait")}
+                        >
+                          <LuRectangleVertical className="h-8 w-8 md:h-12 md:w-12 mb-1 md:mb-2" />
+                          <span className="font-medium text-xs md:text-base">Portrait</span>
+                          <span className="text-[10px] md:text-xs text-muted-foreground mt-0.5 md:mt-1">2:3</span>
                         </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Portrait (2:3)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={cn(
+                            "flex flex-col items-center p-2 md:p-4 rounded-lg cursor-pointer border-2 transition-all",
+                            selectedLayout === "auto" 
+                              ? "border-primary bg-primary/5" 
+                              : "border-border hover:border-primary/50"
+                          )}
+                          onClick={() => setSelectedLayout("auto")}
+                        >
+                          <MdOutlineAutoAwesome className="h-8 w-8 md:h-12 md:w-12 mb-1 md:mb-2" />
+                          <span className="font-medium text-xs md:text-base">Auto</span>
+                          <span className="text-[10px] md:text-xs text-muted-foreground mt-0.5 md:mt-1">Best Fit</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Auto (Best Fit)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              </div>
+              
+              <div className="space-y-2 md:space-y-3">
+                <h3 className="text-sm md:text-lg font-medium">Number of Variations</h3>
+                <p className="text-xs md:text-sm text-muted-foreground">Choose how many different ad variations to generate</p>
+                <Select 
+                  value={variationCount} 
+                  onValueChange={setVariationCount}
+                >
+                  <SelectTrigger className="w-full text-xs md:text-sm h-9 md:h-10">
+                    <SelectValue placeholder="3 variations" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 variation</SelectItem>
+                    <SelectItem value="2">2 variations</SelectItem>
+                    <SelectItem value="3">3 variations</SelectItem>
+                    <SelectItem value="5">5 variations</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                <p className="text-[10px] md:text-xs text-muted-foreground mt-1 md:mt-2">
+                  Each variation costs 1 credit. You will use {variationCount} credit{parseInt(variationCount) > 1 ? 's' : ''} for this generation.
+                </p>
+              </div>
+
+              {/* Summary section */}
+              <div className="pt-4 mt-4 border-t">
+                <h3 className="text-sm md:text-lg font-medium mb-3">Summary</h3>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Product image summary */}
+                  {productImageUrl && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">Product Image</p>
+                      <div className="aspect-square border rounded-lg overflow-hidden">
+                        <LazyImage 
+                          src={productImageUrl}
+                          alt="Product"
+                          className="w-full h-full object-contain"
+                        />
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                   
-                  <div className="mt-6">
-                    <Button 
-                      onClick={handleSubmit}
-                      className="w-full py-4 md:py-6 text-sm md:text-lg h-auto"
-                      disabled={!hasProductImage || isSubmitting}
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 className="mr-2 md:mr-3 h-4 w-4 md:h-5 md:w-5 animate-spin" />
-                          Creating...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="mr-2 md:mr-3 h-4 w-4 md:h-5 md:w-5" />
-                          Generate {variationCount} ad{parseInt(variationCount) > 1 ? 's' : ''} ({variationCount} credit{parseInt(variationCount) > 1 ? 's' : ''})
-                        </>
-                      )}
-                    </Button>
-                  </div>
+                  {/* Reference ad summary */}
+                  {referenceAdUrl && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">Reference Ad</p>
+                      <div className="aspect-square border rounded-lg overflow-hidden">
+                        <LazyImage 
+                          src={referenceAdUrl}
+                          alt="Reference"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="mt-6">
+                  <Button 
+                    onClick={handleSubmit}
+                    className="w-full py-4 md:py-6 text-sm md:text-lg h-auto"
+                    disabled={!hasProductImage || isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 md:mr-3 h-4 w-4 md:h-5 md:w-5 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 md:mr-3 h-4 w-4 md:h-5 md:w-5" />
+                        Generate {variationCount} ad{parseInt(variationCount) > 1 ? 's' : ''} ({variationCount} credit{parseInt(variationCount) > 1 ? 's' : ''})
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
             </div>

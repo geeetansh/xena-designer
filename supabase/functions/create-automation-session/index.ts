@@ -50,7 +50,8 @@ Deno.serve(async (req: Request) => {
       brandLogoUrl,
       referenceAdUrl,
       instructions,
-      variationCount 
+      variationCount,
+      layout = 'auto' // Default to 'auto' if not provided
     } = await req.json();
     
     // Validate the required fields
@@ -71,7 +72,8 @@ Deno.serve(async (req: Request) => {
         reference_ad_url: referenceAdUrl,
         instructions: instructions || null,
         variation_count: variationCount || 3,
-        status: 'draft'
+        status: 'draft',
+        layout: layout // Store the layout in the database
       })
       .select()
       .single();

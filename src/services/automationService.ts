@@ -13,6 +13,7 @@ export interface AutomationSession {
   status: string;
   created_at: string;
   updated_at: string;
+  layout?: string;
 }
 
 export interface PromptVariation {
@@ -97,7 +98,8 @@ export async function createAutomationSession(
   brandLogo?: File | null,
   referenceAd?: File | null,
   instructions?: string,
-  variationCount: number = 3
+  variationCount: number = 3,
+  layout: string = 'auto'
 ): Promise<string> {
   try {
     // Upload all images first using the new prepareAutomationImages function
@@ -132,6 +134,7 @@ export async function createAutomationSession(
         referenceAdUrl: referenceAdUrl || null,
         instructions: instructions || null,
         variationCount,
+        layout
       }),
     });
     
@@ -146,6 +149,7 @@ export async function createAutomationSession(
     trackEvent('automation_session_created', {
       session_id: createdSession.id,
       variation_count: variationCount,
+      layout,
       has_brand_logo: !!brandLogoUrl,
       has_reference_ad: !!referenceAdUrl,
       has_instructions: !!instructions

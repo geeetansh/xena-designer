@@ -10,6 +10,9 @@ import {
   Check,
   ArrowLeft
 } from 'lucide-react';
+import { FaRegSquare } from "react-icons/fa";
+import { LuRectangleHorizontal, LuRectangleVertical } from "react-icons/lu";
+import { MdOutlineAutoAwesome } from "react-icons/md";
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { LazyImage } from '@/components/LazyImage';
@@ -23,6 +26,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 import { createAutomationSession, generatePrompts } from '@/services/automationService';
 
 export default function AutomationBuilderPage() {
@@ -36,6 +45,7 @@ export default function AutomationBuilderPage() {
   const [referenceAd, setReferenceAd] = useState<File | null>(null);
   const [referenceAdUrl, setReferenceAdUrl] = useState<string | null>(null);
   const [variationCount, setVariationCount] = useState('3');
+  const [selectedLayout, setSelectedLayout] = useState<string>("auto");
   
   // Image selector modals
   const [isProductSelectorOpen, setIsProductSelectorOpen] = useState(false);
@@ -240,7 +250,8 @@ export default function AutomationBuilderPage() {
         null, // No brand logo for now
         referenceAdFile,
         "", // No instructions for now
-        parseInt(variationCount, 10)
+        parseInt(variationCount, 10),
+        selectedLayout // Pass the selected layout
       );
       
       setCurrentSession({
@@ -301,7 +312,7 @@ export default function AutomationBuilderPage() {
       case 2:
         return "Add a reference ad";
       case 3:
-        return "Choose variations";
+        return "Choose layout and variations";
       default:
         return "";
     }
@@ -315,7 +326,7 @@ export default function AutomationBuilderPage() {
       case 2:
         return "Optionally add a reference ad to guide the style of your assets.";
       case 3:
-        return "Choose the number of ad variations to generate.";
+        return "Choose the layout and number of ad variations to generate.";
       default:
         return "";
     }
@@ -513,7 +524,107 @@ export default function AutomationBuilderPage() {
       case 3:
         return (
           <div className="max-w-xs md:max-w-2xl mx-auto mt-4 md:mt-8">
-            <div className="space-y-4 md:space-y-6 p-3 md:p-6 border rounded-lg">
+            <div className="space-y-6 md:space-y-8 p-3 md:p-6 border rounded-lg">
+              {/* Layout selection */}
+              <div className="space-y-2 md:space-y-3">
+                <h3 className="text-sm md:text-lg font-medium">Choose layout</h3>
+                <p className="text-xs md:text-sm text-muted-foreground">Select the shape and format of your generated ads</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mt-2">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={cn(
+                            "flex flex-col items-center p-2 md:p-4 rounded-lg cursor-pointer border-2 transition-all",
+                            selectedLayout === "square" 
+                              ? "border-primary bg-primary/5" 
+                              : "border-border hover:border-primary/50"
+                          )}
+                          onClick={() => setSelectedLayout("square")}
+                        >
+                          <FaRegSquare className="h-8 w-8 md:h-12 md:w-12 mb-1 md:mb-2" />
+                          <span className="font-medium text-xs md:text-base">Square</span>
+                          <span className="text-[10px] md:text-xs text-muted-foreground mt-0.5 md:mt-1">1:1</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Square (1:1)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={cn(
+                            "flex flex-col items-center p-2 md:p-4 rounded-lg cursor-pointer border-2 transition-all",
+                            selectedLayout === "landscape" 
+                              ? "border-primary bg-primary/5" 
+                              : "border-border hover:border-primary/50"
+                          )}
+                          onClick={() => setSelectedLayout("landscape")}
+                        >
+                          <LuRectangleHorizontal className="h-8 w-8 md:h-12 md:w-12 mb-1 md:mb-2" />
+                          <span className="font-medium text-xs md:text-base">Landscape</span>
+                          <span className="text-[10px] md:text-xs text-muted-foreground mt-0.5 md:mt-1">3:2</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Landscape (3:2)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={cn(
+                            "flex flex-col items-center p-2 md:p-4 rounded-lg cursor-pointer border-2 transition-all",
+                            selectedLayout === "portrait" 
+                              ? "border-primary bg-primary/5" 
+                              : "border-border hover:border-primary/50"
+                          )}
+                          onClick={() => setSelectedLayout("portrait")}
+                        >
+                          <LuRectangleVertical className="h-8 w-8 md:h-12 md:w-12 mb-1 md:mb-2" />
+                          <span className="font-medium text-xs md:text-base">Portrait</span>
+                          <span className="text-[10px] md:text-xs text-muted-foreground mt-0.5 md:mt-1">2:3</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Portrait (2:3)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={cn(
+                            "flex flex-col items-center p-2 md:p-4 rounded-lg cursor-pointer border-2 transition-all",
+                            selectedLayout === "auto" 
+                              ? "border-primary bg-primary/5" 
+                              : "border-border hover:border-primary/50"
+                          )}
+                          onClick={() => setSelectedLayout("auto")}
+                        >
+                          <MdOutlineAutoAwesome className="h-8 w-8 md:h-12 md:w-12 mb-1 md:mb-2" />
+                          <span className="font-medium text-xs md:text-base">Auto</span>
+                          <span className="text-[10px] md:text-xs text-muted-foreground mt-0.5 md:mt-1">Best Fit</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Auto (Best Fit)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              </div>
+
+              {/* Variation Count */}
               <div className="space-y-2 md:space-y-3">
                 <h3 className="text-sm md:text-lg font-medium">Number of Variations</h3>
                 <p className="text-xs md:text-sm text-muted-foreground">Choose how many different ad variations to generate</p>
