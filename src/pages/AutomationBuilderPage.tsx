@@ -19,6 +19,7 @@ import { LazyImage } from '@/components/LazyImage';
 import { useToast } from '@/hooks/use-toast';
 import { ImageSelectionModal } from '@/components/ImageSelectionModal';
 import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
   SelectContent,
@@ -55,6 +56,9 @@ export default function AutomationBuilderPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentSession, setCurrentSession] = useState<{id: string, status: string} | null>(null);
   const [progress, setProgress] = useState(0);
+  
+  // Skeleton loading state for step transitions
+  const [isStepLoading, setIsStepLoading] = useState(false);
   
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -178,7 +182,7 @@ export default function AutomationBuilderPage() {
     
     // Automatically proceed to next step after selecting product image
     if (currentStep === 1) {
-      setCurrentStep(2);
+      changeStep(2);
     }
   };
   
@@ -189,7 +193,7 @@ export default function AutomationBuilderPage() {
     
     // Automatically proceed to next step after selecting product image
     if (currentStep === 1) {
-      setCurrentStep(2);
+      changeStep(2);
     }
   };
   
@@ -205,7 +209,7 @@ export default function AutomationBuilderPage() {
     
     // Automatically proceed to next step after selecting reference image
     if (currentStep === 2) {
-      setCurrentStep(3);
+      changeStep(3);
     }
   };
   
@@ -216,7 +220,18 @@ export default function AutomationBuilderPage() {
     
     // Automatically proceed to next step after selecting reference image
     if (currentStep === 2) {
-      setCurrentStep(3);
+      changeStep(3);
+    }
+  };
+  
+  // Handle step navigation with skeleton animation
+  const changeStep = (newStep: number) => {
+    if (newStep !== currentStep) {
+      setIsStepLoading(true);
+      setTimeout(() => {
+        setCurrentStep(newStep);
+        setIsStepLoading(false);
+      }, 500); // 0.5 second skeleton loading
     }
   };
   
@@ -240,13 +255,13 @@ export default function AutomationBuilderPage() {
     
     // Move to next step
     if (currentStep < totalSteps) {
-      setCurrentStep(currentStep + 1);
+      changeStep(currentStep + 1);
     }
   };
   
   const handleBack = () => {
     if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
+      changeStep(currentStep - 1);
     } else {
       // If on first step, go back to previous page
       navigate(-1);
@@ -436,8 +451,38 @@ export default function AutomationBuilderPage() {
     );
   };
   
+  // Render skeleton loaders for step content
+  const renderSkeletonContent = () => {
+    switch (currentStep) {
+      case 1:
+      case 2:
+        return (
+          <div className="max-w-xs md:max-w-2xl mx-auto mt-4 md:mt-8">
+            <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-4">
+              {Array.from({ length: 12 }).map((_, index) => (
+                <Skeleton key={index} className="aspect-square w-full h-full rounded-lg" />
+              ))}
+            </div>
+          </div>
+        );
+      case 3:
+        return (
+          <div className="max-w-xs md:max-w-2xl mx-auto mt-4 md:mt-8">
+            <Skeleton className="w-full h-[400px] md:h-[500px] rounded-lg" />
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+  
   // Render step content
   const renderStepContent = () => {
+    // Show skeleton during step transitions
+    if (isStepLoading) {
+      return renderSkeletonContent();
+    }
+    
     switch (currentStep) {
       case 1:
         return (
@@ -479,7 +524,7 @@ export default function AutomationBuilderPage() {
                 <div className="w-full p-2 md:p-4">
                   <h3 className="text-sm md:text-lg font-medium mb-2 md:mb-3">Choose a product image</h3>
                   
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
+                  <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-4">
                     {/* Add Upload button as first grid item */}
                     <div 
                       className="aspect-square border border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer bg-muted/10 hover:bg-muted/20 transition-colors p-2 md:p-4"
@@ -550,7 +595,7 @@ export default function AutomationBuilderPage() {
                 <div className="w-full p-2 md:p-4">
                   <h3 className="text-sm md:text-lg font-medium mb-2 md:mb-3">Choose a reference ad (optional)</h3>
                   
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
+                  <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-4">
                     {/* Add Upload button as first grid item */}
                     <div 
                       className="aspect-square border border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer bg-muted/10 hover:bg-muted/20 transition-colors p-2 md:p-4"
@@ -777,7 +822,7 @@ export default function AutomationBuilderPage() {
       return true;
     }
     
-    return isSubmitting;
+    return isSubmitting || isStepLoading;
   };
   
   // Get button text based on current step
@@ -859,7 +904,7 @@ export default function AutomationBuilderPage() {
             size="sm"
             onClick={handleBack}
             className="gap-1 md:gap-2 h-8 md:h-10 text-xs md:text-sm"
-            disabled={isSubmitting}
+            disabled={isSubmitting || isStepLoading}
           >
             <ChevronLeft className="h-3.5 w-3.5 md:h-4 md:w-4" />
             Back
@@ -872,8 +917,17 @@ export default function AutomationBuilderPage() {
               className="gap-1 md:gap-2 h-8 md:h-10 text-xs md:text-sm"
               disabled={isNextButtonDisabled()}
             >
-              {getNextButtonText()}
-              <ChevronRight className="h-3.5 w-3.5 md:h-4 md:w-4" />
+              {isStepLoading ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 md:h-4 md:w-4 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                <>
+                  {getNextButtonText()}
+                  <ChevronRight className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                </>
+              )}
             </Button>
           )}
         </div>
