@@ -33,6 +33,10 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { getInstructions } from '@/services/settingsService';
 import { createAutomationSession, generatePrompts } from '@/services/automationService';
 
 export default function AutomationBuilderPage() {
@@ -48,6 +52,12 @@ export default function AutomationBuilderPage() {
   const [variationCount, setVariationCount] = useState('3');
   const [selectedLayout, setSelectedLayout] = useState<string>("auto");
   
+  // Instructions state
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [instructions, setInstructions] = useState<string>("");
+  const [availableInstructions, setAvailableInstructions] = useState<string[]>([]);
+  const [selectedInstructions, setSelectedInstructions] = useState<Set<string>>(new Set());
+  
   // Image selector modals
   const [isProductSelectorOpen, setIsProductSelectorOpen] = useState(false);
   const [isReferenceSelectorOpen, setIsReferenceSelectorOpen] = useState(false);
@@ -62,6 +72,20 @@ export default function AutomationBuilderPage() {
   
   const { toast } = useToast();
   const navigate = useNavigate();
+  
+  // Fetch available instructions when component mounts
+  useEffect(() => {
+    async function fetchInstructions() {
+      try {
+        const instructionsList = await getInstructions();
+        setAvailableInstructions(instructionsList);
+      } catch (error) {
+        console.error("Error fetching instructions:", error);
+      }
+    }
+    
+    fetchInstructions();
+  }, []);
   
   // Preset product images
   const presetProductImages = [
@@ -268,6 +292,31 @@ export default function AutomationBuilderPage() {
     }
   };
   
+  // Toggle instruction in the prompt
+  const toggleInstruction = (text: string) => {
+    const newSelectedInstructions = new Set(selectedInstructions);
+    
+    if (selectedInstructions.has(text)) {
+      // Remove the instruction
+      newSelectedInstructions.delete(text);
+      
+      // Update the instructions by removing this instruction
+      const parts = instructions.split(/[,.]\s*/);
+      const newParts = parts.filter(part => part.trim() !== text.trim());
+      setInstructions(newParts.join(', ').trim());
+    } else {
+      // Add the instruction
+      newSelectedInstructions.add(text);
+      if (instructions) {
+        setInstructions(`${instructions}, ${text}`);
+      } else {
+        setInstructions(text);
+      }
+    }
+    
+    setSelectedInstructions(newSelectedInstructions);
+  };
+  
   // Form submission handler
   const handleSubmit = async () => {
     // Validate requirements
@@ -277,7 +326,6 @@ export default function AutomationBuilderPage() {
         description: "Please select or upload a product image",
         variant: "destructive"
       });
-      setCurrentStep(1);
       return;
     }
     
@@ -324,7 +372,7 @@ export default function AutomationBuilderPage() {
         productImageFile,
         null, // No brand logo for now
         referenceAdFile,
-        "", // No instructions for now
+        showInstructions ? instructions : "", // Only include instructions if enabled
         parseInt(variationCount, 10),
         selectedLayout // Pass the selected layout
       );
@@ -405,50 +453,6 @@ export default function AutomationBuilderPage() {
       default:
         return "";
     }
-  };
-  
-  // Render step indicator
-  const renderStepIndicator = () => {
-    return (
-      <div className="flex items-center justify-center w-full mb-4 md:mb-6">
-        {Array.from({ length: totalSteps }).map((_, index) => {
-          const stepNum = index + 1;
-          const isActive = currentStep === stepNum;
-          const isCompleted = currentStep > stepNum;
-          
-          return (
-            <div key={stepNum} className="flex items-center">
-              <div 
-                className={cn(
-                  "flex items-center justify-center w-6 h-6 md:w-10 md:h-10 rounded-full text-xs md:text-sm font-medium transition-colors",
-                  isActive 
-                    ? "bg-primary text-primary-foreground border-2 border-primary"
-                    : isCompleted
-                      ? "bg-primary/20 text-primary"
-                      : "bg-muted text-muted-foreground"
-                )}
-              >
-                {isCompleted ? (
-                  <Check className="h-3.5 w-3.5 md:h-5 md:w-5" />
-                ) : (
-                  stepNum
-                )}
-              </div>
-              
-              {/* Connector line between steps */}
-              {stepNum < totalSteps && (
-                <div 
-                  className={cn(
-                    "w-8 md:w-16 h-0.5 md:h-1 mx-0.5 md:mx-1",
-                    currentStep > stepNum ? "bg-primary/50" : "bg-muted"
-                  )} 
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    );
   };
   
   // Render skeleton loaders for step content
@@ -752,6 +756,66 @@ export default function AutomationBuilderPage() {
                   Each variation costs 1 credit. You will use {variationCount} credit{parseInt(variationCount) > 1 ? 's' : ''} for this generation.
                 </p>
               </div>
+              
+              {/* Instructions Toggle */}
+              <div className="space-y-2 md:space-y-3 pt-2 md:pt-3 border-t">
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col gap-1">
+                    <h3 className="text-sm md:text-lg font-medium">Add Instructions</h3>
+                    <p className="text-xs md:text-sm text-muted-foreground">
+                      Provide specific instructions for your ad generation
+                    </p>
+                  </div>
+                  <Switch 
+                    checked={showInstructions}
+                    onCheckedChange={setShowInstructions}
+                    id="instructions-toggle"
+                  />
+                </div>
+                
+                {/* Instructions Input and Preset Options */}
+                {showInstructions && (
+                  <div className="pt-3 space-y-4 animate-in fade-in-50 slide-in-from-top-5 duration-300">
+                    <div className="space-y-2">
+                      <Label htmlFor="instructions" className="text-sm font-medium">Instructions</Label>
+                      <Textarea
+                        id="instructions"
+                        placeholder="Add specific instructions for your ad generation..."
+                        className="min-h-[100px] resize-none"
+                        value={instructions}
+                        onChange={(e) => setInstructions(e.target.value)}
+                      />
+                    </div>
+                    
+                    {/* Preset Instructions */}
+                    {availableInstructions.length > 0 && (
+                      <div className="space-y-2 border rounded-lg p-3 md:p-4 bg-muted/10">
+                        <Label className="text-sm font-medium">Preset Instructions</Label>
+                        <p className="text-xs text-muted-foreground mb-2">
+                          Click to add these common instructions
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {availableInstructions.map((instruction, index) => (
+                            <Button
+                              key={index}
+                              type="button"
+                              variant={selectedInstructions.has(instruction) ? "default" : "outline"}
+                              size="sm"
+                              className="text-xs rounded-full h-7"
+                              onClick={() => toggleInstruction(instruction)}
+                            >
+                              {selectedInstructions.has(instruction) && (
+                                <Check className="h-3 w-3 mr-1" />
+                              )}
+                              {instruction}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* Summary section */}
               <div className="pt-4 mt-4 border-t">
@@ -786,6 +850,16 @@ export default function AutomationBuilderPage() {
                     </div>
                   )}
                 </div>
+                
+                {/* Instructions summary */}
+                {showInstructions && instructions && (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-xs text-muted-foreground">Instructions</p>
+                    <div className="border rounded-lg p-2 md:p-3 bg-muted/10">
+                      <p className="text-xs md:text-sm">{instructions}</p>
+                    </div>
+                  </div>
+                )}
                 
                 <div className="mt-6">
                   <Button 
@@ -829,6 +903,8 @@ export default function AutomationBuilderPage() {
   const getNextButtonText = () => {
     if (currentStep === totalSteps) {
       return isSubmitting ? "Creating..." : "Generate";
+    } else if (currentStep === totalSteps - 1) {
+      return "Review";
     } else {
       return "Continue";
     }
