@@ -48,12 +48,12 @@ export default function AutomatePage() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Masonry breakpoints
+  // Masonry breakpoints - updated for mobile view to show 2 columns
   const breakpointColumnsObj = {
     default: 4,
     1100: 3,
     700: 2,
-    500: 1
+    500: 2  // Updated to show 2 columns on mobile instead of 1
   };
 
   // Load recent jobs on mount
