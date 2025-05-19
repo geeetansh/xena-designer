@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
   ImageIcon,
   Calendar,
@@ -9,13 +8,13 @@ import {
   Loader2,
   RefreshCw,
   Plus,
-  Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { LazyImage } from '@/components/LazyImage';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase';
+import { useNavigate } from 'react-router-dom';
 import Masonry from 'react-masonry-css';
 import {
   Dialog,
@@ -25,7 +24,6 @@ import {
   DialogFooter,
   DialogClose
 } from "@/components/ui/dialog";
-import { generatePrompts } from '@/services/automationService';
 
 interface GenerationJob {
   id: string;
@@ -38,17 +36,6 @@ interface GenerationJob {
   prompt_variations?: any;
 }
 
-type GenerationStatus = {
-  batchId: string;
-  total: number;
-  completed: number;
-  failed: number;
-  productImageUrl?: string;
-  referenceAdUrl?: string;
-  startTime: number;
-  isGeneratingPrompts?: boolean;
-};
-
 export default function AutomatePage() {
   // State
   const [generationJobs, setGenerationJobs] = useState<GenerationJob[]>([]);
@@ -56,7 +43,6 @@ export default function AutomatePage() {
   const [isJobDetailsOpen, setIsJobDetailsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [activeGenerations, setActiveGenerations] = useState<GenerationStatus[]>([]);
 
   const latestJobsRef = useRef<GenerationJob[]>([]);
   const { toast } = useToast();
@@ -88,7 +74,6 @@ export default function AutomatePage() {
   const fetchLatestJobs = async () => {
     try {
       setIsRefreshing(true);
-      
       const { data, error } = await supabase
         .from('generation_jobs')
         .select(`
@@ -121,251 +106,10 @@ export default function AutomatePage() {
     }
   };
 
-  // Setup event listener for ad generation start
-  useEffect(() => {
-    // Event listener for generation start
-    const handleAdGenerationStarted = async (event: CustomEvent<any>) => {
-      const { sessionId, productImage, referenceAd, variationCount, isGeneratingPrompts } = event.detail;
-      
-      console.log('Ad generation started:', sessionId);
-      
-      // Add this generation to the active generations
-      setActiveGenerations(prev => [
-        ...prev, 
-        {
-          batchId: sessionId,
-          total: variationCount,
-          completed: 0,
-          failed: 0,
-          productImageUrl: productImage,
-          referenceAdUrl: referenceAd,
-          startTime: Date.now(),
-          isGeneratingPrompts: isGeneratingPrompts || false
-        }
-      ]);
-      
-      // Start the prompt generation process
-      try {
-        await generatePrompts(sessionId);
-        console.log('Prompt generation initiated for session:', sessionId);
-      } catch (error) {
-        console.error('Error generating prompts:', error);
-        toast({
-          title: "Error starting generation",
-          description: error instanceof Error ? error.message : "An unexpected error occurred",
-          variant: "destructive"
-        });
-      }
-      
-      // Fetch latest jobs to show the new jobs
-      fetchLatestJobs();
-    };
-    
-    // Add event listener
-    window.addEventListener('adGenerationStarted', handleAdGenerationStarted as EventListener);
-    
-    return () => {
-      window.removeEventListener('adGenerationStarted', handleAdGenerationStarted as EventListener);
-    };
-  }, [toast]);
-
-  // Set up subscription to get real-time updates
-  useEffect(() => {
-    // Subscribe to generation task updates
-    const channel = supabase
-      .channel('gallery-generation-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'generation_jobs'
-        },
-        async (payload) => {
-          console.log('Received task update event:', payload);
-          
-          // Handle different types of updates
-          if (payload.eventType === 'UPDATE') {
-            // When a task is updated, check if it's part of an active batch
-            const newStatus = (payload.new as any).status;
-            const batchId = (payload.new as any).session_id;
-            
-            // Update active generations if this job is part of a batch we're tracking
-            setActiveGenerations(prev => {
-              return prev.map(gen => {
-                // Only update the specific batch
-                if (gen.batchId === batchId) {
-                  // Mark as no longer generating prompts since we're processing jobs
-                  // Update completed or failed count based on new status
-                  if (newStatus === 'completed') {
-                    return { 
-                      ...gen, 
-                      completed: gen.completed + 1,
-                      isGeneratingPrompts: false
-                    };
-                  } else if (newStatus === 'failed') {
-                    return {
-                      ...gen,
-                      failed: gen.failed + 1,
-                      isGeneratingPrompts: false
-                    };
-                  } else {
-                    return {
-                      ...gen,
-                      isGeneratingPrompts: false
-                    };
-                  }
-                }
-                return gen;
-              });
-            });
-            
-            // Refresh jobs after status update
-            fetchLatestJobs();
-          } else if (payload.eventType === 'INSERT') {
-            // When a new job is created, refresh our list
-            fetchLatestJobs();
-          }
-        }
-      )
-      .subscribe();
-    
-    // Cleanup
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  // Check for completed generations periodically and remove them from active list
-  useEffect(() => {
-    // Remove completed generations from the active list
-    const checkCompletedGenerations = () => {
-      setActiveGenerations(prev => 
-        prev.filter(gen => {
-          // Keep if not all jobs are complete
-          return (gen.completed + gen.failed) < gen.total;
-        })
-      );
-    };
-    
-    // Check every 5 seconds
-    const interval = setInterval(checkCompletedGenerations, 5000);
-    
-    return () => clearInterval(interval);
-  }, []);
-
-  // Check for too old generations and remove them
-  useEffect(() => {
-    const removeOldGenerations = () => {
-      const now = Date.now();
-      const timeoutMs = 10 * 60 * 1000; // 10 minutes timeout
-      
-      setActiveGenerations(prev => 
-        prev.filter(gen => {
-          // Remove if generation is too old (more than 10 minutes)
-          return (now - gen.startTime) < timeoutMs;
-        })
-      );
-    };
-    
-    // Check every minute
-    const interval = setInterval(removeOldGenerations, 60 * 1000);
-    
-    return () => clearInterval(interval);
-  }, []);
-
   // Action handlers
   const handleViewDetails = (job: GenerationJob) => {
     setSelectedJob(job);
     setIsJobDetailsOpen(true);
-  };
-
-  const handleDownloadImage = async (imageUrl: string, prompt: string) => {
-    try {
-      // Download the image
-      const response = await fetch(imageUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `xena-ad-${prompt.substring(0, 20).replace(/[^a-z0-9]/gi, '-').toLowerCase()}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      
-      toast({
-        title: "Image downloaded",
-        description: "The image has been downloaded successfully."
-      });
-    } catch (error) {
-      console.error('Error downloading image:', error);
-      toast({
-        title: "Download failed",
-        description: "Failed to download image. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
-
-  // Calculate progress for a generation
-  const calculateProgress = (status: GenerationStatus) => {
-    if (status.total === 0) return 0;
-    return ((status.completed + status.failed) / status.total) * 100;
-  };
-
-  // Render the generation status indicator
-  const renderGenerationStatus = () => {
-    if (activeGenerations.length === 0) return null;
-    
-    return (
-      <div className="mb-4 md:mb-6 p-3 md:p-6 bg-gradient-to-r from-background/80 to-background/40 backdrop-blur-sm border border-border/40 rounded-lg md:rounded-2xl shadow-sm">
-        <div className="space-y-2 md:space-y-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center">
-              <Clock className="h-4 w-4 md:h-5 md:w-5 mr-1 md:mr-2 text-amber-500 animate-pulse" />
-              <span className="line-clamp-2 text-sm md:text-base">
-                {activeGenerations.some(gen => gen.isGeneratingPrompts) 
-                  ? "Generating prompts, please wait..." 
-                  : "Your images are being generated, please wait a few moments!"}
-              </span>
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="rounded-full text-xs"
-              onClick={() => fetchLatestJobs()}
-            >
-              <RefreshCw className="h-3 w-3 md:h-4 md:w-4 mr-1" />
-              <span className="hidden md:inline">Refresh</span>
-            </Button>
-          </div>
-          
-          {activeGenerations.map((gen, index) => (
-            <div key={index} className="space-y-1">
-              {activeGenerations.length > 1 && (
-                <div className="flex items-center text-xs text-muted-foreground">
-                  <span className="line-clamp-1">
-                    Generation {index + 1} of {activeGenerations.length}
-                  </span>
-                  <span className="ml-2">
-                    {gen.isGeneratingPrompts 
-                      ? "Preparing prompts..." 
-                      : `${gen.completed} of ${gen.total} completed`}
-                  </span>
-                </div>
-              )}
-              <div className="w-full bg-background/80 rounded-full h-2 md:h-3">
-                <div 
-                  className="bg-primary h-full rounded-full transition-all duration-300"
-                  style={{ width: `${calculateProgress(gen)}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
   };
 
   return (
@@ -376,18 +120,16 @@ export default function AutomatePage() {
           <Button 
             variant="outline"
             onClick={() => fetchLatestJobs()}
-            disabled={isRefreshing || activeGenerations.some(gen => gen.isGeneratingPrompts)}
+            disabled={isRefreshing}
             className="gap-1.5 h-8 md:h-9 text-xs md:text-sm"
             size="sm"
           >
-            {isRefreshing || activeGenerations.some(gen => gen.isGeneratingPrompts) ? (
+            {isRefreshing ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}
-            <span className="hidden md:inline">
-              {activeGenerations.some(gen => gen.isGeneratingPrompts) ? "Generating..." : "Refresh"}
-            </span>
+            <span className="hidden md:inline">Refresh</span>
           </Button>
           
           <Button 
@@ -400,9 +142,6 @@ export default function AutomatePage() {
           </Button>
         </div>
       </div>
-
-      {/* Generation status indicator */}
-      {renderGenerationStatus()}
 
       {/* Gallery view */}
       {isLoading ? (
@@ -515,7 +254,20 @@ export default function AutomatePage() {
                   {/* Download button */}
                   {selectedJob.status === 'completed' && selectedJob.image_url && (
                     <Button 
-                      onClick={() => handleDownloadImage(selectedJob.image_url!, selectedJob.prompt)}
+                      onClick={() => {
+                        // Handle download
+                        const a = document.createElement('a');
+                        a.href = selectedJob.image_url!;
+                        a.download = `xena-ad-${selectedJob.prompt.substring(0, 30)}.png`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        
+                        toast({
+                          title: "Image downloaded",
+                          description: "The ad image has been downloaded successfully"
+                        });
+                      }}
                       className="w-full"
                     >
                       <Download className="mr-2 h-4 w-4" />
