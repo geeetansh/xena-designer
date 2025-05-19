@@ -46,6 +46,7 @@ type GenerationStatus = {
   productImageUrl?: string;
   referenceAdUrl?: string;
   startTime: number;
+  isGeneratingPrompts?: boolean;
 };
 
 export default function AutomatePage() {
@@ -124,7 +125,7 @@ export default function AutomatePage() {
   useEffect(() => {
     // Event listener for generation start
     const handleAdGenerationStarted = async (event: CustomEvent<any>) => {
-      const { sessionId, productImage, referenceAd, variationCount } = event.detail;
+      const { sessionId, productImage, referenceAd, variationCount, isGeneratingPrompts } = event.detail;
       
       console.log('Ad generation started:', sessionId);
       
@@ -138,7 +139,8 @@ export default function AutomatePage() {
           failed: 0,
           productImageUrl: productImage,
           referenceAdUrl: referenceAd,
-          startTime: Date.now()
+          startTime: Date.now(),
+          isGeneratingPrompts: isGeneratingPrompts || false
         }
       ]);
       
@@ -193,16 +195,24 @@ export default function AutomatePage() {
               return prev.map(gen => {
                 // Only update the specific batch
                 if (gen.batchId === batchId) {
+                  // Mark as no longer generating prompts since we're processing jobs
                   // Update completed or failed count based on new status
                   if (newStatus === 'completed') {
                     return { 
                       ...gen, 
-                      completed: gen.completed + 1 
+                      completed: gen.completed + 1,
+                      isGeneratingPrompts: false
                     };
                   } else if (newStatus === 'failed') {
                     return {
                       ...gen,
-                      failed: gen.failed + 1
+                      failed: gen.failed + 1,
+                      isGeneratingPrompts: false
+                    };
+                  } else {
+                    return {
+                      ...gen,
+                      isGeneratingPrompts: false
                     };
                   }
                 }
@@ -315,7 +325,9 @@ export default function AutomatePage() {
             <div className="flex items-center">
               <Clock className="h-4 w-4 md:h-5 md:w-5 mr-1 md:mr-2 text-amber-500 animate-pulse" />
               <span className="line-clamp-2 text-sm md:text-base">
-                Your images are being generated, please wait a few moments!
+                {activeGenerations.some(gen => gen.isGeneratingPrompts) 
+                  ? "Generating prompts, please wait..." 
+                  : "Your images are being generated, please wait a few moments!"}
               </span>
             </div>
             <Button 
@@ -337,7 +349,9 @@ export default function AutomatePage() {
                     Generation {index + 1} of {activeGenerations.length}
                   </span>
                   <span className="ml-2">
-                    {gen.completed} of {gen.total} completed
+                    {gen.isGeneratingPrompts 
+                      ? "Preparing prompts..." 
+                      : `${gen.completed} of ${gen.total} completed`}
                   </span>
                 </div>
               )}
@@ -362,16 +376,18 @@ export default function AutomatePage() {
           <Button 
             variant="outline"
             onClick={() => fetchLatestJobs()}
-            disabled={isRefreshing}
+            disabled={isRefreshing || activeGenerations.some(gen => gen.isGeneratingPrompts)}
             className="gap-1.5 h-8 md:h-9 text-xs md:text-sm"
             size="sm"
           >
-            {isRefreshing ? (
+            {isRefreshing || activeGenerations.some(gen => gen.isGeneratingPrompts) ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}
-            <span className="hidden md:inline">Refresh</span>
+            <span className="hidden md:inline">
+              {activeGenerations.some(gen => gen.isGeneratingPrompts) ? "Generating..." : "Refresh"}
+            </span>
           </Button>
           
           <Button 

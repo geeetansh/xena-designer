@@ -76,6 +76,7 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
 
   // Processing state
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGeneratingPrompts, setIsGeneratingPrompts] = useState(false);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [progress, setProgress] = useState(0);
 
@@ -95,6 +96,7 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
       setCurrentSession(null);
       setProgress(0);
       setIsSubmitting(false);
+      setIsGeneratingPrompts(false);
     }
   }, [open]);
 
@@ -201,14 +203,34 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
       
       console.log(`About to generate prompts for session ID: ${sessionId}`);
       
-      // Start generating prompts
+      // Start generating prompts and set isGeneratingPrompts to true
+      setIsGeneratingPrompts(true);
+      
       try {
+        console.log('Calling generatePrompts function...');
         await generatePrompts(sessionId);
         console.log(`Successfully initiated prompt generation for session ID: ${sessionId}`);
       } catch (promptError) {
         console.error(`Error generating prompts for session ID: ${sessionId}:`, promptError);
         // We'll still continue because we want to navigate and show errors in the automate page
+      } finally {
+        setIsGeneratingPrompts(false);
       }
+      
+      // Store the needed data for background processing
+      const generationData = {
+        sessionId,
+        productImage: productImageUrl,
+        referenceAd: referenceAdUrl,
+        variationCount: parseInt(variationCount, 10),
+        layout: selectedLayout,
+        isGeneratingPrompts: true
+      };
+      
+      // Dispatch a custom event to notify the system about the generation
+      window.dispatchEvent(new CustomEvent('adGenerationStarted', { 
+        detail: generationData
+      }));
       
       // Close the modal if requested and notify parent of success
       if (onSuccess) {
