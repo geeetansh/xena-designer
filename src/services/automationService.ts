@@ -268,3 +268,54 @@ export async function fetchGenerationJobs(sessionId: string): Promise<Generation
     return [];
   }
 }
+
+// Function to check the status of an automation session (for polling)
+export async function checkAutomationSessionStatus(sessionId: string): Promise<{
+  status: string;
+  progress: number;
+  total: number;
+  completed: number;
+  failed: number;
+}> {
+  try {
+    // Get the session to check its status
+    const session = await fetchAutomationSession(sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+    
+    // Get all variations
+    const variations = await fetchPromptVariations(sessionId);
+    const total = variations.length;
+    
+    // Get all jobs for these variations
+    const jobs = await Promise.all(
+      variations.map(v => 
+        supabase
+          .from('generation_jobs')
+          .select('id, status')
+          .eq('variation_id', v.id)
+          .single()
+          .then(({ data }) => data)
+      )
+    );
+    
+    // Count completed and failed jobs
+    const completed = jobs.filter(j => j?.status === 'completed').length;
+    const failed = jobs.filter(j => j?.status === 'failed').length;
+    
+    // Calculate progress
+    const progress = total > 0 ? ((completed + failed) / total) * 100 : 0;
+    
+    return {
+      status: session.status,
+      progress,
+      total,
+      completed,
+      failed
+    };
+  } catch (error) {
+    console.error('Error checking automation session status:', error);
+    throw error;
+  }
+}

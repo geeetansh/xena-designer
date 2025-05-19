@@ -377,46 +377,36 @@ export default function AutomationBuilderPage() {
         selectedLayout // Pass the selected layout
       );
       
-      setCurrentSession({
-        id: sessionId,
-        status: 'draft'
-      });
+      // Store the needed data for background processing
+      const generationData = {
+        sessionId,
+        productImage: productImageUrl,
+        referenceAd: referenceAdUrl,
+        variationCount: parseInt(variationCount, 10),
+        layout: selectedLayout,
+        instructions: showInstructions ? instructions : ""
+      };
+      
+      // Dispatch a custom event to notify the system about the generation
+      window.dispatchEvent(new CustomEvent('adGenerationStarted', { 
+        detail: generationData
+      }));
       
       toast({
-        title: 'Campaign started',
-        description: 'Your automated ad campaign is being generated. You can view progress on the automate page.'
+        title: 'Ad generation started',
+        description: 'Your ads are now being generated. View progress on the automate page.',
       });
       
-      // Start generating prompts
-      await generatePrompts(sessionId);
-      
-      // Show progress updates
-      setProgress(10);
-      
-      // Simulate progress updates for better UX
-      const interval = setInterval(() => {
-        setProgress(prev => {
-          if (prev >= 95) {
-            clearInterval(interval);
-            return 100;
-          }
-          return prev + 5;
-        });
-      }, 1000);
-      
-      // Navigate to the automate page to see results after a short delay
-      setTimeout(() => {
-        navigate('/automate');
-      }, 3000);
+      // Navigate to the automate page immediately
+      navigate('/automate');
       
     } catch (error) {
-      console.error("Error creating automation:", error);
+      console.error("Error starting ad generation:", error);
       toast({
-        title: "Failed to create automation",
+        title: "Failed to start ad generation",
         description: error instanceof Error ? error.message : "An unexpected error occurred",
         variant: "destructive"
       });
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -777,7 +767,6 @@ export default function AutomationBuilderPage() {
                 </div>
               </div>
 
-              {/* Variation Count */}
               <div className="space-y-2 md:space-y-3">
                 <h3 className="text-sm md:text-lg font-medium">Number of Variations</h3>
                 <p className="text-xs md:text-sm text-muted-foreground">Choose how many different ad variations to generate</p>
