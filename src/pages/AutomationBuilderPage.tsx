@@ -261,6 +261,12 @@ export default function AutomationBuilderPage() {
   
   // Handle step navigation
   const handleNext = () => {
+    // For Step 1, go directly to Step 2
+    if (currentStep === 1) {
+      setCurrentStep(2);
+      return;
+    }
+    
     // Validate current step
     if (currentStep === 1 && !hasProductImage) {
       toast({
@@ -332,7 +338,7 @@ export default function AutomationBuilderPage() {
     setIsSubmitting(true);
     
     try {
-      // Create automation session
+      // Process product image
       let productImageFile = productImage;
       
       // If we have a URL but no file, convert URL to File
@@ -341,7 +347,6 @@ export default function AutomationBuilderPage() {
           // Extract filename from URL to preserve file extension
           const filename = productImageUrl.split('/').pop() || 'product.jpg';
           productImageFile = await urlToFile(productImageUrl, filename);
-          console.log('Successfully converted product image URL to File object');
         } catch (error) {
           console.error('Error converting product image URL to File:', error);
           throw new Error("Failed to process product image. Please try uploading a different image.");
@@ -359,15 +364,13 @@ export default function AutomationBuilderPage() {
         try {
           const filename = referenceAdUrl.split('/').pop() || 'reference.jpg';
           referenceAdFile = await urlToFile(referenceAdUrl, filename);
-          console.log('Successfully converted reference ad URL to File object');
         } catch (error) {
           console.error('Error converting reference ad URL to File:', error);
           // We can continue without reference ad
-          console.log('Continuing without reference ad');
         }
       }
       
-      // Create session
+      // Create automation session
       const sessionId = await createAutomationSession(
         productImageFile,
         null, // No brand logo for now
@@ -407,6 +410,7 @@ export default function AutomationBuilderPage() {
         description: error instanceof Error ? error.message : "An unexpected error occurred",
         variant: "destructive"
       });
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -435,9 +439,9 @@ export default function AutomationBuilderPage() {
   const getStepDescription = () => {
     switch (currentStep) {
       case 1:
-        return "Upload the product you wish to transform or choose from our sample images.";
+        return "Select or upload a product image to be featured in your ads.";
       case 2:
-        return "Optionally add a reference ad to guide the style of your assets.";
+        return "Optionally add a reference ad to guide the style of your generated assets.";
       case 3:
         return "Choose the layout and number of ad variations to generate.";
       default:

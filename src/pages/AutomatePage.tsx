@@ -87,6 +87,7 @@ export default function AutomatePage() {
   const fetchLatestJobs = async () => {
     try {
       setIsRefreshing(true);
+      
       const { data, error } = await supabase
         .from('generation_jobs')
         .select(`
