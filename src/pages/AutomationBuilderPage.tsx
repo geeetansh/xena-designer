@@ -480,6 +480,50 @@ export default function AutomationBuilderPage() {
     }
   };
   
+  // Render step indicator
+  const renderStepIndicator = () => {
+    return (
+      <div className="flex items-center justify-center w-full mb-4 md:mb-6">
+        {Array.from({ length: totalSteps }).map((_, index) => {
+          const stepNum = index + 1;
+          const isActive = currentStep === stepNum;
+          const isCompleted = currentStep > stepNum;
+          
+          return (
+            <div key={stepNum} className="flex items-center">
+              <div 
+                className={cn(
+                  "flex items-center justify-center w-6 h-6 md:w-10 md:h-10 rounded-full text-xs md:text-sm font-medium transition-colors",
+                  isActive 
+                    ? "bg-primary text-primary-foreground border-2 border-primary"
+                    : isCompleted
+                      ? "bg-primary/20 text-primary"
+                      : "bg-muted text-muted-foreground"
+                )}
+              >
+                {isCompleted ? (
+                  <Check className="h-3.5 w-3.5 md:h-5 md:w-5" />
+                ) : (
+                  stepNum
+                )}
+              </div>
+              
+              {/* Connector line between steps */}
+              {stepNum < totalSteps && (
+                <div 
+                  className={cn(
+                    "w-8 md:w-16 h-0.5 md:h-1 mx-0.5 md:mx-1",
+                    currentStep > stepNum ? "bg-primary/50" : "bg-muted"
+                  )} 
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+  
   // Render step content
   const renderStepContent = () => {
     // Show skeleton during step transitions
