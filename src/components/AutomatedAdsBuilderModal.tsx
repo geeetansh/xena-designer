@@ -76,7 +76,6 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
 
   // Processing state
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isGeneratingPrompts, setIsGeneratingPrompts] = useState(false);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [progress, setProgress] = useState(0);
 
@@ -96,7 +95,6 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
       setCurrentSession(null);
       setProgress(0);
       setIsSubmitting(false);
-      setIsGeneratingPrompts(false);
     }
   }, [open]);
 
@@ -167,13 +165,6 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
         }
       }
       
-      console.log('Creating automation session with:', {
-        productImage: productImageFile ? productImageFile.name : 'null',
-        referenceAd: referenceAdFile ? referenceAdFile.name : 'null',
-        variationCount,
-        layout: selectedLayout
-      });
-      
       // Create automation session
       const sessionId = await createAutomationSession(
         productImageFile,
@@ -183,8 +174,6 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
         parseInt(variationCount, 10),
         selectedLayout // Pass the selected layout
       );
-      
-      console.log(`Automation session created successfully with ID: ${sessionId}`);
       
       setCurrentSession({
         id: sessionId,
@@ -201,36 +190,8 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
         description: "Your ad campaign is being generated.",
       });
       
-      console.log(`About to generate prompts for session ID: ${sessionId}`);
-      
-      // Start generating prompts and set isGeneratingPrompts to true
-      setIsGeneratingPrompts(true);
-      
-      try {
-        console.log('Calling generatePrompts function...');
-        await generatePrompts(sessionId);
-        console.log(`Successfully initiated prompt generation for session ID: ${sessionId}`);
-      } catch (promptError) {
-        console.error(`Error generating prompts for session ID: ${sessionId}:`, promptError);
-        // We'll still continue because we want to navigate and show errors in the automate page
-      } finally {
-        setIsGeneratingPrompts(false);
-      }
-      
-      // Store the needed data for background processing
-      const generationData = {
-        sessionId,
-        productImage: productImageUrl,
-        referenceAd: referenceAdUrl,
-        variationCount: parseInt(variationCount, 10),
-        layout: selectedLayout,
-        isGeneratingPrompts: true
-      };
-      
-      // Dispatch a custom event to notify the system about the generation
-      window.dispatchEvent(new CustomEvent('adGenerationStarted', { 
-        detail: generationData
-      }));
+      // Start generating prompts
+      await generatePrompts(sessionId);
       
       // Close the modal if requested and notify parent of success
       if (onSuccess) {

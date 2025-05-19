@@ -261,12 +261,6 @@ export default function AutomationBuilderPage() {
   
   // Handle step navigation
   const handleNext = () => {
-    // For Step 1, go directly to Step 2
-    if (currentStep === 1) {
-      setCurrentStep(2);
-      return;
-    }
-    
     // Validate current step
     if (currentStep === 1 && !hasProductImage) {
       toast({
@@ -338,7 +332,7 @@ export default function AutomationBuilderPage() {
     setIsSubmitting(true);
     
     try {
-      // Process product image
+      // Create automation session
       let productImageFile = productImage;
       
       // If we have a URL but no file, convert URL to File
@@ -347,6 +341,7 @@ export default function AutomationBuilderPage() {
           // Extract filename from URL to preserve file extension
           const filename = productImageUrl.split('/').pop() || 'product.jpg';
           productImageFile = await urlToFile(productImageUrl, filename);
+          console.log('Successfully converted product image URL to File object');
         } catch (error) {
           console.error('Error converting product image URL to File:', error);
           throw new Error("Failed to process product image. Please try uploading a different image.");
@@ -364,13 +359,15 @@ export default function AutomationBuilderPage() {
         try {
           const filename = referenceAdUrl.split('/').pop() || 'reference.jpg';
           referenceAdFile = await urlToFile(referenceAdUrl, filename);
+          console.log('Successfully converted reference ad URL to File object');
         } catch (error) {
           console.error('Error converting reference ad URL to File:', error);
           // We can continue without reference ad
+          console.log('Continuing without reference ad');
         }
       }
       
-      // Create automation session
+      // Create session
       const sessionId = await createAutomationSession(
         productImageFile,
         null, // No brand logo for now
@@ -380,33 +377,42 @@ export default function AutomationBuilderPage() {
         selectedLayout // Pass the selected layout
       );
       
-      // Store the needed data for background processing
-      const generationData = {
-        sessionId,
-        productImage: productImageUrl,
-        referenceAd: referenceAdUrl,
-        variationCount: parseInt(variationCount, 10),
-        layout: selectedLayout,
-        instructions: showInstructions ? instructions : ""
-      };
-      
-      // Dispatch a custom event to notify the system about the generation
-      window.dispatchEvent(new CustomEvent('adGenerationStarted', { 
-        detail: generationData
-      }));
-      
-      toast({
-        title: 'Ad generation started',
-        description: 'Your ads are now being generated. View progress on the automate page.',
+      setCurrentSession({
+        id: sessionId,
+        status: 'draft'
       });
       
-      // Navigate to the automate page immediately
-      navigate('/automate');
+      toast({
+        title: 'Campaign started',
+        description: 'Your automated ad campaign is being generated. You can view progress on the automate page.'
+      });
+      
+      // Start generating prompts
+      await generatePrompts(sessionId);
+      
+      // Show progress updates
+      setProgress(10);
+      
+      // Simulate progress updates for better UX
+      const interval = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 95) {
+            clearInterval(interval);
+            return 100;
+          }
+          return prev + 5;
+        });
+      }, 1000);
+      
+      // Navigate to the automate page to see results after a short delay
+      setTimeout(() => {
+        navigate('/automate');
+      }, 3000);
       
     } catch (error) {
-      console.error("Error starting ad generation:", error);
+      console.error("Error creating automation:", error);
       toast({
-        title: "Failed to start ad generation",
+        title: "Failed to create automation",
         description: error instanceof Error ? error.message : "An unexpected error occurred",
         variant: "destructive"
       });
@@ -439,9 +445,9 @@ export default function AutomationBuilderPage() {
   const getStepDescription = () => {
     switch (currentStep) {
       case 1:
-        return "Select or upload a product image to be featured in your ads.";
+        return "Upload the product you wish to transform or choose from our sample images.";
       case 2:
-        return "Optionally add a reference ad to guide the style of your generated assets.";
+        return "Optionally add a reference ad to guide the style of your assets.";
       case 3:
         return "Choose the layout and number of ad variations to generate.";
       default:
@@ -771,6 +777,7 @@ export default function AutomationBuilderPage() {
                 </div>
               </div>
 
+              {/* Variation Count */}
               <div className="space-y-2 md:space-y-3">
                 <h3 className="text-sm md:text-lg font-medium">Number of Variations</h3>
                 <p className="text-xs md:text-sm text-muted-foreground">Choose how many different ad variations to generate</p>
