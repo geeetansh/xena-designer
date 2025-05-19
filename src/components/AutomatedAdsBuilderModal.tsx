@@ -165,6 +165,13 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
         }
       }
       
+      console.log('Creating automation session with:', {
+        productImage: productImageFile ? productImageFile.name : 'null',
+        referenceAd: referenceAdFile ? referenceAdFile.name : 'null',
+        variationCount,
+        layout: selectedLayout
+      });
+      
       // Create automation session
       const sessionId = await createAutomationSession(
         productImageFile,
@@ -174,6 +181,8 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
         parseInt(variationCount, 10),
         selectedLayout // Pass the selected layout
       );
+      
+      console.log(`Automation session created successfully with ID: ${sessionId}`);
       
       setCurrentSession({
         id: sessionId,
@@ -190,8 +199,16 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
         description: "Your ad campaign is being generated.",
       });
       
+      console.log(`About to generate prompts for session ID: ${sessionId}`);
+      
       // Start generating prompts
-      await generatePrompts(sessionId);
+      try {
+        await generatePrompts(sessionId);
+        console.log(`Successfully initiated prompt generation for session ID: ${sessionId}`);
+      } catch (promptError) {
+        console.error(`Error generating prompts for session ID: ${sessionId}:`, promptError);
+        // We'll still continue because we want to navigate and show errors in the automate page
+      }
       
       // Close the modal if requested and notify parent of success
       if (onSuccess) {

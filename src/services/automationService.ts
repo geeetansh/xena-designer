@@ -102,12 +102,27 @@ export async function createAutomationSession(
   layout: string = 'auto'
 ): Promise<string> {
   try {
+    console.log('Starting createAutomationSession with:', {
+      product: productImage ? `${productImage.name} (${productImage.size} bytes)` : 'none', 
+      logo: brandLogo ? 'provided' : 'none',
+      reference: referenceAd ? 'provided' : 'none',
+      instructions: instructions ? 'provided' : 'none',
+      variations: variationCount,
+      layout
+    });
+    
     // Upload all images first using the new prepareAutomationImages function
     const {
       productImageUrl,
       brandLogoUrl,
       referenceAdUrl
     } = await prepareAutomationImages(productImage, brandLogo, referenceAd);
+    
+    console.log('Images uploaded successfully:', { 
+      productImageUrl: productImageUrl.substring(0, 50) + '...',
+      brandLogoUrl: brandLogoUrl ? brandLogoUrl.substring(0, 50) + '...' : 'none',
+      referenceAdUrl: referenceAdUrl ? referenceAdUrl.substring(0, 50) + '...' : 'none'
+    });
     
     // Ensure we have a product image URL
     if (!productImageUrl) {
@@ -122,6 +137,7 @@ export async function createAutomationSession(
     }
     
     // Call the edge function to create a session
+    console.log(`Calling create-automation-session edge function. Auth token length: ${session.access_token.length}`);
     const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-automation-session`, {
       method: 'POST',
       headers: {
@@ -140,10 +156,12 @@ export async function createAutomationSession(
     
     if (!response.ok) {
       const errorData = await response.json();
+      console.error('Error from create-automation-session:', errorData);
       throw new Error(errorData.error || 'Failed to create automation session');
     }
     
     const { session: createdSession } = await response.json();
+    console.log('Automation session created successfully:', createdSession);
     
     // Track the event
     trackEvent('automation_session_created', {
@@ -164,14 +182,18 @@ export async function createAutomationSession(
 
 export async function generatePrompts(sessionId: string): Promise<void> {
   try {
+    console.log(`Starting generatePrompts for session ID: ${sessionId}`);
+    
     // Get the current session
     const { data: { session } } = await supabase.auth.getSession();
     
     if (!session) {
+      console.error("Authorization error: No active session");
       throw new Error('You must be logged in to generate prompts');
     }
     
     // Call the edge function to generate prompts
+    console.log(`Calling generate-prompt-variations edge function with sessionId: ${sessionId}. Auth token length: ${session.access_token.length}`);
     const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-prompt-variations`, {
       method: 'POST',
       headers: {
@@ -184,13 +206,24 @@ export async function generatePrompts(sessionId: string): Promise<void> {
     });
     
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to generate prompts');
+      const errorText = await response.text();
+      console.error(`Edge function error (HTTP ${response.status}):`, errorText);
+      try {
+        const errorData = JSON.parse(errorText);
+        throw new Error(errorData.error || 'Failed to generate prompts');
+      } catch (jsonError) {
+        // If JSON parsing failed, use the raw error text
+        throw new Error(`Failed to generate prompts: ${errorText}`);
+      }
     }
+    
+    const responseData = await response.json();
+    console.log('Prompt generation successful:', responseData);
     
     // Track the event
     trackEvent('automation_prompts_generated', {
-      session_id: sessionId
+      session_id: sessionId,
+      prompt_count: responseData.promptCount || 0
     });
   } catch (error) {
     console.error('Error generating prompts:', error);
