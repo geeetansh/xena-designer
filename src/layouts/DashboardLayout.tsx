@@ -14,11 +14,11 @@ import {
   Menu, 
   Sparkles,
   ChevronRight,
-  X, 
+  X,
+  GalleryVerticalEnd 
 } from 'lucide-react';
-import { GalleryVerticalEnd as LuGalleryVerticalEnd } from "lucide-react";
 import { TbSmartHome, TbPhotoSquareRounded } from 'react-icons/tb';
-import { FaRegBell, FaBullhorn, FaAd } from "react-icons/fa6";
+import { FaRegBell, FaBullhorn } from "react-icons/fa6";
 import { SiShopify } from "react-icons/si";
 import { IoSettingsOutline } from "react-icons/io5";
 import { LuLibrary } from "react-icons/lu";
@@ -195,7 +195,7 @@ export default function DashboardLayout() {
       { 
         id: 'automate', 
         label: 'Static ad', 
-        icon: <FaAd className="h-5 w-5" />,
+        icon: <GalleryVerticalEnd className="h-5 w-5" />,
         badge: staticAdCount > 0 ? staticAdCount : undefined
       }
     ],
