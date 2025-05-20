@@ -258,7 +258,7 @@ export default function AutomatePage() {
                         // Handle download
                         const a = document.createElement('a');
                         a.href = selectedJob.image_url!;
-                        a.download = `xena-ad-${selectedJob.prompt.substring(0, 30)}.png`;
+                        a.download = `xena-ad-${selectedJob.id}.png`;
                         document.body.appendChild(a);
                         a.click();
                         document.body.removeChild(a);
@@ -278,14 +278,6 @@ export default function AutomatePage() {
                 
                 {/* Right side - Details */}
                 <div className="space-y-4">
-                  {/* Prompt */}
-                  <div className="space-y-2">
-                    <h3 className="font-medium">Prompt</h3>
-                    <div className="p-4 border rounded-lg bg-muted/30 text-sm">
-                      <p>{selectedJob.prompt}</p>
-                    </div>
-                  </div>
-                  
                   {/* Reference Images */}
                   {selectedJob.prompt_variations && (
                     <div className="space-y-2">
