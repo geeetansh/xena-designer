@@ -38,7 +38,11 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
-import { createAutomationSession, generatePrompts } from '@/services/automationService';
+import { 
+  createAutomationSession, 
+  generatePrompts, 
+  checkUserCreditsForAutomation 
+} from '@/services/automationService';
 
 interface Session {
   id: string;
@@ -69,6 +73,9 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
   const [referenceAdUrl, setReferenceAdUrl] = useState<string | null>(null);
   const [variationCount, setVariationCount] = useState('3');
   const [selectedLayout, setSelectedLayout] = useState<string>("auto");
+  const [userCredits, setUserCredits] = useState<number | null>(null);
+  const [checkingCredits, setCheckingCredits] = useState(false);
+  const [insufficientCredits, setInsufficientCredits] = useState(false);
 
   // Modal states
   const [isProductSelectorOpen, setIsProductSelectorOpen] = useState(false);
@@ -95,8 +102,34 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
       setCurrentSession(null);
       setProgress(0);
       setIsSubmitting(false);
+      setInsufficientCredits(false);
+      
+      // Check user credits when modal opens
+      checkCredits();
     }
   }, [open]);
+  
+  // Check user credits
+  const checkCredits = async () => {
+    try {
+      setCheckingCredits(true);
+      const { hasCredits, credits } = await checkUserCreditsForAutomation(parseInt(variationCount, 10));
+      setUserCredits(credits);
+      setInsufficientCredits(!hasCredits);
+    } catch (error) {
+      console.error("Error checking credits:", error);
+      setInsufficientCredits(true);
+    } finally {
+      setCheckingCredits(false);
+    }
+  };
+  
+  // Re-check credits when variation count changes
+  useEffect(() => {
+    if (open) {
+      checkCredits();
+    }
+  }, [variationCount, open]);
 
   // Navigation handlers
   const handleNext = () => {
@@ -130,6 +163,20 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
           description: "Please select or upload a product image",
           variant: "destructive"
         });
+        return;
+      }
+      
+      // Check if user has sufficient credits
+      const requiredCredits = parseInt(variationCount, 10);
+      const { hasCredits, credits } = await checkUserCreditsForAutomation(requiredCredits);
+      
+      if (!hasCredits) {
+        toast({
+          title: "Insufficient credits",
+          description: `You need ${requiredCredits} credits for this generation but only have ${credits} available.`,
+          variant: "destructive"
+        });
+        setInsufficientCredits(true);
         return;
       }
       
@@ -701,7 +748,9 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
                 <p className="text-xs md:text-sm text-muted-foreground">Choose how many different ad variations to generate</p>
                 <Select 
                   value={variationCount} 
-                  onValueChange={setVariationCount}
+                  onValueChange={(value) => {
+                    setVariationCount(value);
+                  }}
                 >
                   <SelectTrigger className="w-full text-xs md:text-sm h-9 md:h-10">
                     <SelectValue placeholder="3 variations" />
@@ -714,9 +763,25 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
                   </SelectContent>
                 </Select>
                 
-                <p className="text-[10px] md:text-xs text-muted-foreground mt-1 md:mt-2">
-                  Each variation costs 1 credit. You will use {variationCount} credit{parseInt(variationCount) > 1 ? 's' : ''} for this generation.
-                </p>
+                <div className="text-[10px] md:text-xs text-muted-foreground mt-1 md:mt-2">
+                  {checkingCredits ? (
+                    "Checking available credits..."
+                  ) : (
+                    <>
+                      Each variation costs 1 credit. You will use {variationCount} credit{parseInt(variationCount) > 1 ? 's' : ''} for this generation.
+                      {userCredits !== null && (
+                        <div className="mt-1">
+                          You have <span className={insufficientCredits ? "text-red-500 font-bold" : "font-medium"}>{userCredits}</span> credits available.
+                        </div>
+                      )}
+                      {insufficientCredits && (
+                        <div className="text-red-500 mt-1">
+                          You need more credits to generate this many variations.
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
 
               {/* Summary section */}
@@ -757,7 +822,7 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
                   <Button 
                     onClick={handleSubmit}
                     className="w-full py-4 md:py-6 text-sm md:text-lg h-auto"
-                    disabled={!hasProductImage || isSubmitting}
+                    disabled={!hasProductImage || isSubmitting || insufficientCredits}
                   >
                     {isSubmitting ? (
                       <>
@@ -771,6 +836,17 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
                       </>
                     )}
                   </Button>
+                  
+                  {insufficientCredits && (
+                    <Button
+                      variant="outline"
+                      className="w-full mt-2"
+                      onClick={() => navigate('/pricing')}
+                    >
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Get More Credits
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>

@@ -93,6 +93,49 @@ export async function prepareAutomationImages(
   return result;
 }
 
+/**
+ * Check if user has enough credits for the requested number of variations
+ * @param variationCount Number of variations to generate
+ * @returns Object with hasCredits and credits information
+ */
+export async function checkUserCreditsForAutomation(variationCount: number): Promise<{
+  hasCredits: boolean;
+  credits: number;
+}> {
+  try {
+    // Get the current user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+    
+    // Check user's credits
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('credits')
+      .eq('user_id', user.id)
+      .single();
+    
+    if (error) {
+      console.error('Error checking user credits:', error);
+      throw new Error('Failed to check credit balance');
+    }
+    
+    const credits = data?.credits || 0;
+    
+    console.log(`User has ${credits} credits, needs ${variationCount} for automation`);
+    
+    return {
+      hasCredits: credits >= variationCount,
+      credits
+    };
+  } catch (error) {
+    console.error('Error checking user credits:', error);
+    throw error;
+  }
+}
+
 export async function createAutomationSession(
   productImage: File,
   brandLogo?: File | null,
@@ -102,7 +145,14 @@ export async function createAutomationSession(
   layout: string = 'auto'
 ): Promise<string> {
   try {
-    // Upload all images first using the new prepareAutomationImages function
+    // First check if user has enough credits
+    const { hasCredits, credits } = await checkUserCreditsForAutomation(variationCount);
+    
+    if (!hasCredits) {
+      throw new Error(`You need ${variationCount} credits for this generation but only have ${credits} available.`);
+    }
+
+    // Upload all images first using the prepareAutomationImages function
     const {
       productImageUrl,
       brandLogoUrl,
@@ -121,7 +171,18 @@ export async function createAutomationSession(
       throw new Error('You must be logged in to create an automation session');
     }
     
-    // Call the edge function to create a session
+    // Deduct credits first
+    const { error: deductError } = await supabase.rpc("deduct_multiple_credits", { 
+      user_id_param: session.user.id, 
+      amount: variationCount 
+    });
+    
+    if (deductError) {
+      console.error('Error deducting credits:', deductError);
+      throw new Error(`Failed to deduct credits: ${deductError.message}`);
+    }
+    
+    // Now call the edge function to create a session
     const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-automation-session`, {
       method: 'POST',
       headers: {
@@ -152,7 +213,8 @@ export async function createAutomationSession(
       layout,
       has_brand_logo: !!brandLogoUrl,
       has_reference_ad: !!referenceAdUrl,
-      has_instructions: !!instructions
+      has_instructions: !!instructions,
+      credits_used: variationCount
     });
     
     return createdSession.id;
