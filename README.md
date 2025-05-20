@@ -11,6 +11,7 @@ Xena is an AI-powered ecommerce creative generation platform that helps business
 - **Reference Image Library**: Store and reuse creative inspiration
 - **User Management**: Complete authentication with email verification
 - **Credits System**: Track usage with a built-in credits system
+- **Stripe Integration**: Purchase credits to generate more images
 
 ## Technology Stack
 
@@ -36,6 +37,10 @@ Xena is an AI-powered ecommerce creative generation platform that helps business
 - **OpenAI API**: Powers the AI image generation with the `gpt-image-1` model
 - Custom edge functions for handling image processing and optimization
 
+### Payments
+- **Stripe**: Secure payment processing for credit purchases
+- Credits-based system for usage tracking and monetization
+
 ### Deployment
 - **Netlify**: Static hosting and continuous deployment
 - **Vite**: Fast and modern frontend build tool and development server
@@ -47,23 +52,59 @@ Xena is an AI-powered ecommerce creative generation platform that helps business
 The application uses a relational database with the following key tables:
 
 1. **images**: Stores generated AI images
-2. **assets**: Unified storage for all image assets (library, reference, and generated)
+   - Includes variation tracking via `variation_group_id` and `variation_index`
+   
+2. **assets**: Unified storage for all image assets
+   - Categorized by source: library, reference, shopify, or generated
+   - Includes optimization fields for thumbnail and grid views
+
 3. **photoshoots**: Stores photoshoot generation tasks and results
+   - Supports different types: photoshoot and static_ad
+   - Tracking via batch_id/batch_index and variation fields
+
 4. **generation_tasks**: Tracks image generation processes
+   - Batch processing support
+   - Status tracking (pending, processing, completed, failed)
+
 5. **user_profiles**: Stores user information and credit balances
-6. **shopify_credentials**: Manages Shopify integration data 
+   - Manages credits for image generation
+   - Tracks usage statistics
+
+6. **shopify_credentials**: Manages Shopify integration data
+   - Stores access tokens securely
+   - Links to user accounts
+
 7. **shopify_products**: Caches product data from connected stores
+   - Stores product details and images
+   - Automatically updated on sync
+
+8. **automation_sessions**: Manages automated ad generation
+   - Stores session details and parameters
+   - Links to prompt variations and generation jobs
+
+9. **stripe_customers/subscriptions/orders**: Manages payment information
+   - Links users to Stripe customers
+   - Tracks purchases and credits
 
 ### Supabase Integration
 
 The application leverages several Supabase features:
 
-1. **Authentication**: Email/password authentication with verification
+1. **Authentication**: Email/password authentication with OTP verification
+   - Secure token-based auth
+   - Password reset functionality
+
 2. **Storage**: Multiple storage buckets for different asset types
+   - Images, user uploads, and Shopify product images
+   - Public access with RLS protection
+
 3. **Edge Functions**:
    - `generate-image`: Main image generation endpoint that interfaces with OpenAI
    - `process-generation-task`: Handles individual image generation tasks
    - `monitor-batch-tasks`: Monitors and restarts stalled generation jobs
+   - `generate-prompt-variations`: Creates AI-powered ad copy variations
+   - `stripe-checkout`: Handles Stripe payment processing
+   - `stripe-webhook`: Processes Stripe webhook events
 
 ### Row Level Security (RLS)
 
@@ -73,6 +114,11 @@ Every table is protected with Row Level Security policies to ensure users can on
 - INSERT policies: `auth.uid() = user_id`
 - UPDATE policies: `auth.uid() = user_id` 
 - DELETE policies: `auth.uid() = user_id`
+
+For related tables (like `prompt_variations`), more complex policies check ownership through joins:
+```sql
+EXISTS (SELECT 1 FROM automation_sessions WHERE automation_sessions.id = prompt_variations.session_id AND automation_sessions.user_id = auth.uid())
+```
 
 ## Image Generation Process
 
@@ -96,27 +142,10 @@ The application uses a sophisticated image generation process:
    - Multiple image variations are linked with a `variation_group_id`
    - Each variation has an index to maintain order
 
-## Key Components
-
-### Frontend Components
-
-- **AuthContext**: Manages authentication state across the application
-- **DashboardLayout**: Common layout with navigation for authenticated users
-- **LazyImage**: Optimized image loading with lazy loading
-- **PhotoshootBuilderModal**: Wizard interface for creating new image assets
-- **FileUpload**: Drag-and-drop file upload component
-- **ImageGallery**: Display and management of generated images
-- **ProductsList**: Display and management of Shopify products
-
-### Edge Functions
-
-- **generate-image**: Primary endpoint for image generation that:
-  - Validates user authentication
-  - Checks credit balance
-  - Processes reference images
-  - Calls OpenAI API
-  - Saves results to storage
-  - Updates database records
+4. **Automated Ads**:
+   - AI generates multiple prompt variations based on product and reference
+   - Each prompt is used to create a unique ad variant
+   - Results are displayed in a gallery view
 
 ## Shopify Integration
 
@@ -137,6 +166,16 @@ The application implements a credit-based system:
 4. The credit balance is displayed in the UI
 5. Credit usage is tracked in the `user_profiles` table
 
+## Stripe Integration
+
+The application integrates with Stripe for payment processing:
+
+1. **Credit Packages**: Various credit packages are available for purchase
+2. **One-Time Purchases**: Credits can be purchased with a one-time payment
+3. **Checkout Process**: Secure checkout via Stripe Checkout
+4. **Webhook Processing**: Automated credit allocation on successful payment
+5. **Order History**: Users can view their purchase history
+
 ## Development Setup
 
 1. Install dependencies:
@@ -148,6 +187,8 @@ The application implements a credit-based system:
    ```
    VITE_SUPABASE_URL=your-supabase-url
    VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+   VITE_POSTHOG_KEY=your-posthog-key
+   VITE_POSTHOG_HOST=your-posthog-host
    ```
 
 3. Start the development server:
@@ -175,10 +216,10 @@ This project uses Supabase Storage's built-in image transformation capabilities 
    - `quality` - Adjust compression level (0-100)
    - `format` - Convert to different formats (webp, jpeg, png)
 
-2. **Implementation**: The `getImageUrl` utility function generates optimized URLs:
+2. **Implementation**: The `getTransformedImageUrl` utility function generates optimized URLs:
    ```javascript
    // Thumbnail in WebP format
-   const thumbnailUrl = getImageUrl(originalUrl, { 
+   const thumbnailUrl = getTransformedImageUrl(originalUrl, { 
      width: 400, 
      quality: 70, 
      format: 'webp' 
@@ -193,6 +234,8 @@ This project uses Supabase Storage's built-in image transformation capabilities 
 ├── public/                # Static assets
 ├── src/
 │   ├── components/        # Reusable UI components
+│   │   ├── ui/            # shadcn/ui components
+│   │   └── ...            # Custom components
 │   ├── hooks/             # Custom React hooks
 │   ├── layouts/           # Page layout components
 │   ├── lib/               # Utility functions and shared logic
@@ -204,3 +247,24 @@ This project uses Supabase Storage's built-in image transformation capabilities 
 │   └── migrations/        # Database migrations
 └── package.json           # Project dependencies and scripts
 ```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Image Generation Failures**:
+   - Check user credit balance
+   - Verify OpenAI API connectivity
+   - Check for large reference images (>10MB)
+
+2. **Photoshoot Synchronization**:
+   - If photoshoots are stuck in "processing" state, navigate to a different page and back
+   - Check network connectivity
+
+3. **Shopify Connection Issues**:
+   - Verify Storefront API token has correct permissions
+   - Ensure store URL is correctly formatted
+
+4. **Stripe Payment Failures**:
+   - Check Stripe webhook configuration
+   - Verify environment variables for Stripe keys
