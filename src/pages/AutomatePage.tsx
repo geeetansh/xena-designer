@@ -24,6 +24,7 @@ import {
   DialogFooter,
   DialogClose
 } from "@/components/ui/dialog";
+import { ImageDetails } from '@/components/ImageDetails';
 
 interface GenerationJob {
   id: string;
@@ -216,135 +217,20 @@ export default function AutomatePage() {
         </Masonry>
       )}
 
-      {/* Image Details Dialog */}
-      <Dialog open={isJobDetailsOpen} onOpenChange={setIsJobDetailsOpen}>
-        {selectedJob && (
-          <DialogContent className="max-w-4xl md:max-w-5xl sm:max-w-[80%] p-0 overflow-hidden flex flex-col max-h-[90vh]">
-            <DialogHeader className="px-4 pt-4">
-              <DialogTitle className="text-xl">Ad Details</DialogTitle>
-            </DialogHeader>
-            
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Left side - Generated Image */}
-                <div className="space-y-4">
-                  <h3 className="font-medium">Generated Ad</h3>
-                  <div className="aspect-square rounded-lg overflow-hidden border bg-muted/30">
-                    {selectedJob.status === 'failed' ? (
-                      <div className="h-full w-full flex flex-col items-center justify-center p-6 text-center">
-                        <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
-                        <p className="text-sm font-medium">Generation failed</p>
-                        <p className="text-xs text-muted-foreground mt-2">
-                          {selectedJob.error_message || "The ad could not be generated"}
-                        </p>
-                      </div>
-                    ) : selectedJob.status === 'completed' && selectedJob.image_url ? (
-                      <img
-                        src={selectedJob.image_url}
-                        alt="Generated ad"
-                        className="h-full w-full object-contain"
-                      />
-                    ) : (
-                      <div className="h-full w-full flex items-center justify-center">
-                        <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Download button */}
-                  {selectedJob.status === 'completed' && selectedJob.image_url && (
-                    <Button 
-                      onClick={() => {
-                        // Handle download
-                        const a = document.createElement('a');
-                        a.href = selectedJob.image_url!;
-                        a.download = `xena-ad-${selectedJob.id}.png`;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        
-                        toast({
-                          title: "Image downloaded",
-                          description: "The ad image has been downloaded successfully"
-                        });
-                      }}
-                      className="w-full"
-                    >
-                      <Download className="mr-2 h-4 w-4" />
-                      Download Image
-                    </Button>
-                  )}
-                </div>
-                
-                {/* Right side - Details */}
-                <div className="space-y-4">
-                  {/* Reference Images */}
-                  {selectedJob.prompt_variations && (
-                    <div className="space-y-2">
-                      <h3 className="font-medium">Reference Images</h3>
-                      <div className="grid grid-cols-2 gap-3">
-                        {/* Product Image */}
-                        {selectedJob.prompt_variations.automation_sessions?.product_image_url && (
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground">Product Image</p>
-                            <div className="aspect-square border rounded-md overflow-hidden">
-                              <LazyImage
-                                src={selectedJob.prompt_variations.automation_sessions.product_image_url}
-                                alt="Product"
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                          </div>
-                        )}
-                        
-                        {/* Reference Ad */}
-                        {selectedJob.prompt_variations.automation_sessions?.reference_ad_url && (
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground">Reference Ad</p>
-                            <div className="aspect-square border rounded-md overflow-hidden">
-                              <LazyImage
-                                src={selectedJob.prompt_variations.automation_sessions.reference_ad_url}
-                                alt="Reference"
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Created Date */}
-                  <div className="space-y-2">
-                    <h3 className="font-medium">Information</h3>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Created</p>
-                        <p className="flex items-center">
-                          <Calendar className="h-3.5 w-3.5 mr-1.5" />
-                          {selectedJob.created_at ? 
-                            format(new Date(selectedJob.created_at), 'MMM d, yyyy HH:mm:ss') : 
-                            'Unknown date'}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Status</p>
-                        <p className="capitalize">{selectedJob.status}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <DialogFooter className="px-4 py-3 border-t">
-              <DialogClose asChild>
-                <Button variant="outline">Close</Button>
-              </DialogClose>
-            </DialogFooter>
-          </DialogContent>
-        )}
-      </Dialog>
+      {/* Image Details */}
+      {selectedJob && (
+        <ImageDetails
+          open={isJobDetailsOpen}
+          onOpenChange={setIsJobDetailsOpen}
+          image={{
+            id: selectedJob.id,
+            image_url: selectedJob.image_url || '',
+            status: selectedJob.status,
+            prompt: selectedJob.prompt,
+            created_at: selectedJob.created_at
+          }}
+        />
+      )}
     </div>
   );
 }
