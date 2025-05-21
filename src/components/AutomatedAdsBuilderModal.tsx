@@ -172,9 +172,9 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
       
       if (!hasCredits) {
         toast({
-          title: 'Insufficient credits',
+          title: "Insufficient credits",
           description: `You need ${requiredCredits} credits for this generation but only have ${credits} available.`,
-          variant: 'destructive'
+          variant: "destructive"
         });
         setInsufficientCredits(true);
         return;
@@ -234,7 +234,7 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
       // Show success toast
       toast({
         title: "Campaign started",
-        description: "Your ad campaign is being generated. You can view progress here.",
+        description: "Your ad campaign is being generated.",
       });
       
       // Start generating prompts
