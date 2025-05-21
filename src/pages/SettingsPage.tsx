@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { ShopifySettings } from '@/components/ShopifySettings';
 import { UserProfileForm } from '@/components/UserProfileForm';
 import { InstructionsSettings } from '@/components/InstructionsSettings';
+import { PromptTemplateSettings } from '@/components/PromptTemplateSettings';
 import { SubscriptionSettings } from '@/components/SubscriptionSettings';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
@@ -25,20 +26,28 @@ import { Label } from '@/components/ui/label';
 import { CheckCircle, Settings2, Image, Sparkles, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getImageQuality, saveImageQuality } from '@/services/settingsService';
+import { isPromptEditorEnabled } from '@/services/promptSettingsService';
+import { isFeatureEnabled } from '@/lib/posthog';
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('general');
   const [imageQuality, setImageQuality] = useState<string>('low');
   const [isLoadingQuality, setIsLoadingQuality] = useState(false);
   const [isSavingQuality, setIsSavingQuality] = useState(false);
+  const [showPromptSettings, setShowPromptSettings] = useState(false);
   const location = useLocation();
   const { toast } = useToast();
+  
+  // Check if the prompt editor feature flag is enabled
+  useEffect(() => {
+    setShowPromptSettings(isPromptEditorEnabled());
+  }, []);
   
   // Check if there's a tab parameter in the URL
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const tab = searchParams.get('tab');
-    if (tab && ['general', 'shopify', 'instructions', 'subscription'].includes(tab)) {
+    if (tab && ['general', 'shopify', 'instructions', 'subscription', 'prompts'].includes(tab)) {
       setActiveTab(tab);
     }
   }, [location]);
@@ -101,6 +110,9 @@ export default function SettingsPage() {
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="shopify">Shopify</TabsTrigger>
           <TabsTrigger value="instructions">Instructions</TabsTrigger>
+          {showPromptSettings && (
+            <TabsTrigger value="prompts">Prompts</TabsTrigger>
+          )}
           <TabsTrigger value="subscription">Subscription</TabsTrigger>
         </TabsList>
         
@@ -180,6 +192,12 @@ export default function SettingsPage() {
         <TabsContent value="instructions">
           <InstructionsSettings />
         </TabsContent>
+
+        {showPromptSettings && (
+          <TabsContent value="prompts">
+            <PromptTemplateSettings />
+          </TabsContent>
+        )}
         
         <TabsContent value="subscription">
           <SubscriptionSettings />
