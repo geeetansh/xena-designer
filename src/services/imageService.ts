@@ -4,7 +4,6 @@ import { mapLayoutToOpenAISize } from '@/lib/utils';
 import { log, error as logError, success, uploadLog, startOperation, endOperation, formatFileSize } from '@/lib/logger';
 import { uploadFromBuffer } from './AssetsService';
 import { trackEvent } from '@/lib/posthog';
-import { getImageQuality } from '@/services/settingsService';
 
 export type GeneratedImage = {
   id: string;
@@ -238,8 +237,7 @@ export async function checkUserCredits(): Promise<{ hasCredits: boolean, credits
           .insert({
             user_id: user.id,
             credits: 10,
-            credits_used: 0,
-            image_quality: 'low'
+            credits_used: 0
           });
         
         return { hasCredits: true, credits: 10 };
@@ -255,8 +253,7 @@ export async function checkUserCredits(): Promise<{ hasCredits: boolean, credits
         .insert({
           user_id: user.id,
           credits: 10,
-          credits_used: 0,
-          image_quality: 'low'
+          credits_used: 0
         });
       
       return { hasCredits: true, credits: 10 };
@@ -284,7 +281,7 @@ export async function deductUserCredit(count: number = 1): Promise<void> {
     log(`Deducting ${count} credits for user ${user.id}`);
     
     // Update the user's credits in the profile using the new function
-    const { error } = await supabase.rpc('deduct_multiple_credits', {
+    const { error } = await supabase.rpc("deduct_multiple_credits", {
       user_id_param: user.id,
       amount: count
     });
@@ -331,8 +328,7 @@ export async function getUserCredits(): Promise<{ credits: number, creditsUsed: 
           .insert({
             user_id: user.id,
             credits: 10,
-            credits_used: 0,
-            image_quality: 'low'
+            credits_used: 0
           })
           .select('credits, credits_used')
           .single();
@@ -396,8 +392,7 @@ export async function generateImage(
   prompt: string,
   referenceImageUrls: string[] = [],
   variants: number = 1,
-  size: string = 'auto',
-  quality: string = 'low'
+  size: string = 'auto'
 ): Promise<{ urls: string[], variationGroupId: string, rawJson?: any }> {
   startOperation(`Generating ${variants} images (${size}) with prompt: "${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}"`);
   const startTime = Date.now();
@@ -440,8 +435,7 @@ export async function generateImage(
     prompt: prompt.substring(0, 100),
     reference_count: allReferenceImageUrls.length,
     variants,
-    size,
-    quality
+    size
   });
   
   // Get the current session for authorization
@@ -469,7 +463,7 @@ export async function generateImage(
     for (let i = 0; i < variants; i++) {
       taskInserts.push({
         user_id: session.user.id,
-        prompt: prompt,
+        prompt,
         status: "pending",
         batch_id: variationGroupId,
         total_in_batch: variants,
@@ -504,8 +498,7 @@ export async function generateImage(
         reference_images_count: allReferenceImageUrls.length,
         prompt: prompt.length > 50 ? prompt.substring(0, 50) + "..." : prompt,
         variants,
-        size: mappedSize,
-        quality
+        size: mappedSize
       };
       
       log(`Request payload summary: ${JSON.stringify(payloadSummary)}`);
@@ -515,8 +508,7 @@ export async function generateImage(
         referenceUrls: allReferenceImageUrls.map(url => url.substring(0, 30) + '...'),
         prompt: prompt.substring(0, 50) + (prompt.length > 50 ? '...' : ''),
         variants,
-        size: mappedSize,
-        quality
+        size: mappedSize
       });
       
       const response = await fetch(`${supabaseUrl}/functions/v1/generate-image`, {
@@ -530,8 +522,7 @@ export async function generateImage(
           reference_images: allReferenceImageUrls,
           prompt,
           variants: variants,
-          size: mappedSize,
-          quality
+          size: mappedSize
         }),
         signal: controller.signal
       });
