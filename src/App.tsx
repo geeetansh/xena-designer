@@ -13,6 +13,7 @@ import EmailVerificationPage from '@/pages/EmailVerificationPage';
 import ResetPasswordPage from '@/pages/ResetPasswordPage';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import HomePage from '@/pages/HomePage';
+import GalleryPage from '@/pages/GalleryPage';
 import LibraryPage from '@/pages/LibraryPage';
 import PhotoshootPage from '@/pages/PhotoshootPage';
 import AutomatePage from '@/pages/AutomatePage';
@@ -98,38 +99,6 @@ function App() {
     checkSession();
   }, []);
   
-  // Listen for navigation events
-  useEffect(() => {
-    const navigateToGallery = () => {
-      navigate('/gallery');
-    };
-    
-    const navigateToGenerate = () => {
-      navigate('/photoshoot');
-    };
-    
-    const navigateToShopifySettings = () => {
-      navigate('/settings');
-      // Wait for component to render and then switch to Shopify tab
-      setTimeout(() => {
-        const shopifyTab = document.querySelector('[data-value="shopify"]');
-        if (shopifyTab && shopifyTab instanceof HTMLElement) {
-          shopifyTab.click();
-        }
-      }, 100);
-    };
-    
-    window.addEventListener('navigateToGallery', navigateToGallery);
-    window.addEventListener('navigateToGenerate', navigateToGenerate);
-    window.addEventListener('navigateToShopifySettings', navigateToShopifySettings);
-    
-    return () => {
-      window.removeEventListener('navigateToGallery', navigateToGallery);
-      window.removeEventListener('navigateToGenerate', navigateToGenerate);
-      window.removeEventListener('navigateToShopifySettings', navigateToShopifySettings);
-    };
-  }, []);
-
   // Set up auth state listener - but only act on changes, not initial state
   useEffect(() => {
     if (!initialCheckDone) return;
@@ -266,7 +235,8 @@ function App() {
           }>
             <Route path="/home" element={<HomePage />} />
             {/* Hidden routes - kept for future use */}
-            <Route path="/photoshoot" element={<PhotoshootPage />} />
+            {/* <Route path="/gallery" element={<GalleryPage />} /> */}
+            {/* <Route path="/photoshoot" element={<PhotoshootPage />} /> */}
             <Route path="/automate" element={<AutomatePage />} />
             <Route path="/library" element={<LibraryPage />} />
             <Route path="/settings" element={<SettingsPage />} />
