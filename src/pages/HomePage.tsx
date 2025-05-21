@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { getUserCredits } from '@/services/imageService';
 import { getShopifyCredentials } from '@/services/shopifyService';
-import { fetchAssets } from '@/services/AssetsService';
 import { SubscriptionBanner } from '@/components/SubscriptionBanner';
 import { 
   FaShopify as ShopifyIcon
@@ -18,7 +17,6 @@ export default function HomePage() {
     full_name?: string | null;
     email?: string | null;
   } | null>(null);
-  const [imageCount, setImageCount] = useState(0);
   const [libraryCount, setLibraryCount] = useState(0);
   const [credits, setCredits] = useState(0);
   const [creditsUsed, setCreditsUsed] = useState(0);
@@ -47,14 +45,6 @@ export default function HomePage() {
           }
           
           setUserProfile(userData);
-          
-          // Get count of images
-          const { count, error: countError } = await supabase
-            .from('images')
-            .select('id', { count: 'exact', head: true });
-            
-          if (countError) throw countError;
-          setImageCount(count || 0);
           
           // Get user credits
           const { credits, creditsUsed } = await getUserCredits();

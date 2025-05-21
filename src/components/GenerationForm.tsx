@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FileUpload } from './FileUpload';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,6 @@ import { MdOutlineAutoAwesome } from "react-icons/md";
 import { 
   uploadImageFile,
   generateImage,
-  saveGeneratedImage,
   ensureStorageBucket,
   checkUserCredits,
   getUserCredits,
@@ -41,8 +40,6 @@ import {
 } from "@/components/ui/tooltip";
 import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/lib/supabase';
-import { ImageSelectionModal } from './ImageSelectionModal';
-import { useNavigate } from 'react-router-dom';
 
 interface GenerationFormProps {
   onImageGenerated: () => void;
@@ -56,10 +53,6 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
   const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
   const [additionalImages, setAdditionalImages] = useState<File[]>([]);
   
-  // Modal states
-  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
-  const [isReferenceModalOpen, setIsReferenceModalOpen] = useState(false);
-  
   // Form state
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -71,7 +64,10 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
   const [generationProgress, setGenerationProgress] = useState(0);
   const [imageQuality, setImageQuality] = useState('low');
   
-  const navigate = useNavigate();
+  // File input refs
+  const productFileInputRef = useRef<HTMLInputElement>(null);
+  const referenceFileInputRef = useRef<HTMLInputElement>(null);
+  
   const { toast } = useToast();
 
   // Fetch user's credits and image quality on component mount
@@ -155,27 +151,11 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
       
       log(`Generation result received in ${((Date.now() - generationStart) / 1000).toFixed(1)}s`);
       
-      // Set progress to 60% after API call completes
-      setGenerationProgress(60);
+      // Set progress to 100% after API call completes
+      setGenerationProgress(100);
       
       // Log the results
       log(`Generated ${result.urls.length} images with variation group ID: ${result.variationGroupId}`);
-      
-      // Save all images to the database
-      for (let i = 0; i < result.urls.length; i++) {
-        try {
-          await saveGeneratedImage(result.urls[i], prompt, referenceUrls, {
-            ...result.rawJson,
-            variation_index: i,
-            variation_group_id: result.variationGroupId
-          });
-          
-          // Update progress incrementally for each image saved
-          setGenerationProgress(60 + Math.floor((i+1) / result.urls.length * 40));
-        } catch (error) {
-          logError(`Error saving image ${i+1}: ${error}`);
-        }
-      }
       
       // Update credits display (already deducted by API)
       const { credits: updatedCredits } = await getUserCredits();
@@ -190,7 +170,6 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
       setReferenceImageUrl(null);
       setAdditionalImages([]);
       setPrompt('');
-      setGenerationProgress(100);
       
       // Delay setting isGenerating to false to allow progress bar to complete
       setTimeout(() => {
@@ -286,36 +265,6 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
     log('Starting image generation process');
     await handleGeneration();
   };
-  
-  // Handle product image selection from modal
-  const handleProductImageSelected = (file: File | null, url: string | null) => {
-    log(`Product image selected: ${file ? 'File' : 'URL'}`);
-    if (file) {
-      setProductImage([file]);
-      setProductImageUrl(null);
-    } else if (url) {
-      setProductImage([]);
-      setProductImageUrl(url);
-    }
-  };
-  
-  // Handle reference image selection from modal
-  const handleReferenceImageSelected = (file: File | null, url: string | null) => {
-    log(`Reference image selected: ${file ? 'File' : 'URL'}`);
-    if (file) {
-      setReferenceImage([file]);
-      setReferenceImageUrl(null);
-    } else if (url) {
-      setReferenceImage([]);
-      setReferenceImageUrl(url);
-    }
-  };
-  
-  // Determine if product image is selected
-  const hasProductImage = productImage.length > 0 || productImageUrl !== null;
-  
-  // Determine if reference image is selected
-  const hasReferenceImage = referenceImage.length > 0 || referenceImageUrl !== null;
 
   return (
     <div className="w-full space-y-6">
@@ -473,27 +422,26 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
           <Separator />
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Product Image Selection Button */}
+            {/* Product Image Upload */}
             <div className="space-y-2">
-              <div className="flex items-baseline mb-2">
-                <p className="text-sm font-medium">Product Image <span className="text-destructive">*</span></p>
-              </div>
-              
-              {hasProductImage ? (
-                <div className="relative group border rounded-lg p-4 h-48">
-                  <div className="w-full h-full flex items-center justify-center">
-                    <div className="relative w-full h-full">
+              <h4 className="text-sm font-medium">Product Image</h4>
+              <div className="border rounded-lg p-4 h-48 flex flex-col">
+                {productImageUrl || productImage.length > 0 ? (
+                  <div className="relative group h-full">
+                    <div className="h-full w-full flex items-center justify-center">
                       <img 
                         src={productImageUrl || (productImage.length > 0 ? URL.createObjectURL(productImage[0]) : '')} 
                         alt="Product" 
-                        className="w-full h-full object-contain"
+                        className="max-h-full max-w-full object-contain"
                       />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                    </div>
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                      <div className="flex gap-2">
                         <Button 
                           variant="secondary" 
                           size="sm"
-                          onClick={() => setIsProductModalOpen(true)}
-                          className="mr-2"
+                          onClick={() => productFileInputRef.current?.click()}
+                          className="text-xs"
                           type="button"
                         >
                           Change
@@ -505,6 +453,7 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
                             setProductImage([]);
                             setProductImageUrl(null);
                           }}
+                          className="text-xs"
                           type="button"
                         >
                           Remove
@@ -512,41 +461,49 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
                       </div>
                     </div>
                   </div>
-                </div>
-              ) : (
-                <Button
-                  variant="outline"
-                  className="w-full h-48 flex flex-col gap-2"
-                  onClick={() => setIsProductModalOpen(true)}
-                  type="button"
-                >
-                  <ImageIcon className="h-8 w-8 text-muted-foreground" />
-                  <span>Select Product Image</span>
-                </Button>
-              )}
+                ) : (
+                  <div className="border-2 border-dashed rounded-lg h-full flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-colors"
+                       onClick={() => productFileInputRef.current?.click()}>
+                    <ImageIcon className="h-8 w-8 text-muted-foreground mb-2" />
+                    <p className="text-sm text-center text-muted-foreground">Select product image</p>
+                  </div>
+                )}
+                <input
+                  ref={productFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      const file = e.target.files[0];
+                      setProductImage([file]);
+                      setProductImageUrl(null); // Clear URL if we're now using a file
+                    }
+                  }}
+                />
+              </div>
             </div>
             
-            {/* Reference Image Selection Button */}
+            {/* Reference Image Upload */}
             <div className="space-y-2">
-              <div className="flex items-baseline mb-2">
-                <p className="text-sm font-medium">Reference Image <span className="text-destructive">*</span></p>
-              </div>
-              
-              {hasReferenceImage ? (
-                <div className="relative group border rounded-lg p-4 h-48">
-                  <div className="w-full h-full flex items-center justify-center">
-                    <div className="relative w-full h-full">
+              <h4 className="text-sm font-medium">Reference Image</h4>
+              <div className="border rounded-lg p-4 h-48 flex flex-col">
+                {referenceImageUrl || referenceImage.length > 0 ? (
+                  <div className="relative group h-full">
+                    <div className="h-full w-full flex items-center justify-center">
                       <img 
                         src={referenceImageUrl || (referenceImage.length > 0 ? URL.createObjectURL(referenceImage[0]) : '')} 
                         alt="Reference" 
-                        className="w-full h-full object-contain"
+                        className="max-h-full max-w-full object-contain"
                       />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                    </div>
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                      <div className="flex gap-2">
                         <Button 
                           variant="secondary" 
                           size="sm"
-                          onClick={() => setIsReferenceModalOpen(true)}
-                          className="mr-2"
+                          onClick={() => referenceFileInputRef.current?.click()}
+                          className="text-xs"
                           type="button"
                         >
                           Change
@@ -558,6 +515,7 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
                             setReferenceImage([]);
                             setReferenceImageUrl(null);
                           }}
+                          className="text-xs"
                           type="button"
                         >
                           Remove
@@ -565,18 +523,27 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
                       </div>
                     </div>
                   </div>
-                </div>
-              ) : (
-                <Button
-                  variant="outline"
-                  className="w-full h-48 flex flex-col gap-2"
-                  onClick={() => setIsReferenceModalOpen(true)}
-                  type="button"
-                >
-                  <ImageIcon className="h-8 w-8 text-muted-foreground" />
-                  <span>Select Reference Image</span>
-                </Button>
-              )}
+                ) : (
+                  <div className="border-2 border-dashed rounded-lg h-full flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-colors"
+                       onClick={() => referenceFileInputRef.current?.click()}>
+                    <ImageIcon className="h-8 w-8 text-muted-foreground mb-2" />
+                    <p className="text-sm text-center text-muted-foreground">Select reference image</p>
+                  </div>
+                )}
+                <input
+                  ref={referenceFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      const file = e.target.files[0];
+                      setReferenceImage([file]);
+                      setReferenceImageUrl(null); // Clear URL if we're now using a file
+                    }
+                  }}
+                />
+              </div>
             </div>
             
             {/* Additional Images Upload - Up to 2 images */}
@@ -594,7 +561,7 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
             type="submit" 
             className="w-full"
             disabled={
-              (!hasProductImage && !hasReferenceImage && additionalImages.length === 0) || 
+              (!productImage.length && !referenceImage.length && additionalImages.length === 0) || 
               !prompt.trim() ||
               noCreditsWarning ||
               isGenerating
@@ -621,23 +588,6 @@ export function GenerationForm({ onImageGenerated }: GenerationFormProps) {
           </p>
         </div>
       </form>
-      
-      {/* Product Image Selection Modal */}
-      <ImageSelectionModal
-        open={isProductModalOpen}
-        onOpenChange={setIsProductModalOpen}
-        onImageSelected={handleProductImageSelected} 
-        title="Product Image"
-        isProduct={true}
-      />
-      
-      {/* Reference Image Selection Modal */}
-      <ImageSelectionModal
-        open={isReferenceModalOpen}
-        onOpenChange={setIsReferenceModalOpen}
-        onImageSelected={handleReferenceImageSelected} 
-        title="Reference Image"
-      />
     </div>
   );
 }

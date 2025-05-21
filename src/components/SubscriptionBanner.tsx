@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Sparkles, Coins, Loader2 } from 'lucide-react';
+import { Coins, Loader2, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getUserCredits } from '@/services/stripeService';
+import { supabase } from '@/lib/supabase';
 
 export function SubscriptionBanner() {
   const [credits, setCredits] = useState<number | null>(null);
@@ -14,10 +14,27 @@ export function SubscriptionBanner() {
     async function fetchCredits() {
       try {
         setIsLoading(true);
-        const credits = await getUserCredits();
-        setCredits(credits);
+        
+        // Fetch credits directly from the user_profiles table
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          const { data, error } = await supabase
+            .from('user_profiles')
+            .select('credits')
+            .eq('user_id', user.id)
+            .single();
+            
+          if (!error && data) {
+            setCredits(data.credits);
+          } else {
+            console.error('Error fetching credits:', error);
+            setCredits(0);
+          }
+        }
       } catch (error) {
         console.error('Error fetching credits:', error);
+        setCredits(0);
       } finally {
         setIsLoading(false);
       }
