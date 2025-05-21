@@ -149,15 +149,17 @@ export async function deleteGeneratedImage(imageId: string): Promise<void> {
           await supabase.storage
             .from(bucket)
             .remove([path]);
+            
+          log(`Deleted file from storage: ${bucket}/${path}`);
         }
       } catch (storageError) {
         // Log but continue - the database record is more important
-        console.error('Error deleting file from storage:', storageError);
+        logError(`Error deleting file from storage: ${storageError instanceof Error ? storageError.message : String(storageError)}`);
       }
     }
   } catch (storageError) {
     // Log but continue - the database record is more important
-    console.error('Error deleting file from storage:', storageError);
+    logError(`Error deleting file from storage: ${storageError instanceof Error ? storageError.message : String(storageError)}`);
   }
   
   // Delete the image record
