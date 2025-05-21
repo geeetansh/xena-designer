@@ -222,7 +222,7 @@ Product Image: ${session.product_image_url}
 ${session.reference_ad_url ? `Reference Ad Style: ${session.reference_ad_url}` : ''}
 ${session.instructions ? `Additional Instructions: ${session.instructions}` : ''}
 
-If a reference ad is provided, analyze it closely to guide the overall visual style, setting, lighting, mood, layout, and composition. Use it as inspiration to recreate similarly effective ads tailored to the uploaded product image.
+If a reference image is provided, study the reference image to understand the ads you need to generate
 
 If no reference ad is available, infer a high-performing ad style based on the product's category and likely audience.
 
