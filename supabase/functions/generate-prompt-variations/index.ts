@@ -204,21 +204,27 @@ Deno.serve(async (req: Request) => {
     // Construct the ChatGPT message
     const systemMessage = `You are an expert ecommerce ad copywriter and marketing specialist. You create compelling, professional, and detailed prompts for AI image generators to create product advertisements. Each prompt should be detailed and specific, focusing on high-quality product photography, professional marketing aesthetics, and commercial appeal.`;
 
-    const userMessageContent = `Create ${session.variation_count} different, 
-detailed prompts for generating product advertisements with these specifications:
+    const userMessageContent = `Create ${session.variation_count} unique and detailed prompts for generating static product advertisements using the specifications below:
 
 Product Image: ${session.product_image_url}
-${session.brand_logo_url ? `Brand Logo: ${session.brand_logo_url}` : ''}
 ${session.reference_ad_url ? `Reference Ad Style: ${session.reference_ad_url}` : ''}
 ${session.instructions ? `Additional Instructions: ${session.instructions}` : ''}
 
-Use the product and reference ad attached image thoroughly to come up with a prompt. The goal is to create variations of a successful ad attached as reference.
+If a reference ad is provided, analyze it closely to guide the overall visual style, setting, lighting, mood, layout, and composition. Use it as inspiration to recreate similarly effective ads tailored to the uploaded product image.
 
-Each prompt should:
-1. Detail a unique ad concept and style
-2. Specify how the product should be presented
-3. Describe lighting, background, and overall composition
-4. Include marketing-oriented details like suggested text positioning or themes
+If no reference ad is available, infer a high-performing ad style based on the product's category and likely audience.
+
+Each prompt must:
+
+Describe a unique ad concept with a clear visual identity
+
+Define how the product should be positioned and presented in the frame
+
+Specify background, lighting, camera angle, and atmosphere
+
+Include marketing-driven details like potential text placement, focal areas, and engagement hooks
+
+The goal is to produce sharp, scroll-stopping ad visuals that align with proven ecommerce ad aesthetics.
 
 Your output MUST follow the specified JSON format with a "prompts" array containing strings.`;
 
