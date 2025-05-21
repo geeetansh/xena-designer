@@ -8,17 +8,6 @@ import { initPostHog } from './lib/posthog.ts';
 // Initialize PostHog
 initPostHog();
 
-// Reload feature flags after initial load
-document.addEventListener('DOMContentLoaded', () => {
-  // Wait for PostHog to initialize first
-  setTimeout(() => {
-    if (window.posthog) {
-      console.log('Reloading PostHog feature flags...');
-      window.posthog.reloadFeatureFlags();
-    }
-  }, 1000);
-});
-
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
