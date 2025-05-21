@@ -13,7 +13,6 @@ import EmailVerificationPage from '@/pages/EmailVerificationPage';
 import ResetPasswordPage from '@/pages/ResetPasswordPage';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import HomePage from '@/pages/HomePage';
-import GalleryPage from '@/pages/GalleryPage';
 import LibraryPage from '@/pages/LibraryPage';
 import PhotoshootPage from '@/pages/PhotoshootPage';
 import AutomatePage from '@/pages/AutomatePage';
@@ -235,7 +234,6 @@ function App() {
           }>
             <Route path="/home" element={<HomePage />} />
             {/* Hidden routes - kept for future use */}
-            {/* <Route path="/gallery" element={<GalleryPage />} /> */}
             {/* <Route path="/photoshoot" element={<PhotoshootPage />} /> */}
             <Route path="/automate" element={<AutomatePage />} />
             <Route path="/library" element={<LibraryPage />} />

@@ -988,7 +988,7 @@ export async function saveGeneratedImage(
           user_id: user.id,
           prompt,
           status: 'completed',
-          reference_image_urls: referenceUrls,
+          reference_image_urls: referenceImageUrls,
           result_image_url: finalImageUrl,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),

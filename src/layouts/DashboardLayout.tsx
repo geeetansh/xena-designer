@@ -72,14 +72,6 @@ export default function DashboardLayout() {
         // Only load counts after a delay
         setTimeout(() => {
           if (isMounted) {
-            // Get count of images
-            supabase
-              .from('images')
-              .select('id', { count: 'exact', head: true })
-              .then(({ count }) => {
-                if (isMounted) setImageCount(count || 0);
-              });
-            
             // Get library count from assets table (replacing library_images)
             supabase
               .from('assets')
@@ -140,10 +132,6 @@ export default function DashboardLayout() {
 
   // Listen for navigation events
   useEffect(() => {
-    const navigateToGallery = () => {
-      navigate('/gallery');
-    };
-    
     const navigateToGenerate = () => {
       navigate('/photoshoot');
     };
@@ -159,12 +147,10 @@ export default function DashboardLayout() {
       }, 100);
     };
     
-    window.addEventListener('navigateToGallery', navigateToGallery);
     window.addEventListener('navigateToGenerate', navigateToGenerate);
     window.addEventListener('navigateToShopifySettings', navigateToShopifySettings);
     
     return () => {
-      window.removeEventListener('navigateToGallery', navigateToGallery);
       window.removeEventListener('navigateToGenerate', navigateToGenerate);
       window.removeEventListener('navigateToShopifySettings', navigateToShopifySettings);
     };
@@ -213,8 +199,6 @@ export default function DashboardLayout() {
     switch (path) {
       case 'home':
         return 'Home';
-      case 'gallery':
-        return 'My creatives';
       case 'library':
         return 'Assets';
       case 'photoshoot':

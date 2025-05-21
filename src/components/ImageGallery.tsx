@@ -204,72 +204,6 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
     setIsDeleteDialogOpen(true);
   };
 
-  // Memoize the image rendering to prevent unnecessary re-renders
-  const imageGallery = useMemo(() => (
-    <div className={`grid grid-cols-${columns === 2 ? '2' : '1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'} gap-2 md:gap-4`}>
-      {images.map((image) => {
-        // Transform the image URL for thumbnails
-        const thumbnailUrl = getTransformedImageUrl(image.url, {
-          width: 400,
-          height: 400,
-          quality: 80,
-          format: 'webp',
-          resize: 'cover'
-        });
-        
-        return (
-          <div 
-            key={image.id} 
-            className="relative group overflow-hidden rounded-lg shadow-sm transition-all duration-200 hover:shadow-md"
-          >
-            <div className="aspect-square w-full h-full bg-background">
-              <img
-                src={thumbnailUrl} 
-                alt={image.prompt}
-                className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                loading="lazy"
-                decoding="async"
-                srcSet={`
-                  ${getTransformedImageUrl(image.url, { width: 200, format: 'webp' })} 200w,
-                  ${getTransformedImageUrl(image.url, { width: 400, format: 'webp' })} 400w,
-                  ${getTransformedImageUrl(image.url, { width: 600, format: 'webp' })} 600w
-                `}
-                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-              />
-            </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end">
-              <div className="p-2 md:p-4 space-y-1">
-                <h3 className="text-white font-medium text-xs md:text-sm line-clamp-1">{image.prompt}</h3>
-                <div className="flex justify-between mt-1 md:mt-2">
-                  <Button 
-                    size="sm" 
-                    variant="secondary"
-                    className="rounded-full shadow-lg text-xs h-7 px-2 md:h-8 md:px-3"
-                    onClick={() => setSelectedImage(image)}
-                  >
-                    <Eye className="h-3 w-3 md:h-4 md:w-4 mr-1" />
-                    View
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="destructive"
-                    className="rounded-full shadow-lg h-7 w-7 p-0 md:h-8 md:w-8"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      confirmDelete(image);
-                    }}
-                  >
-                    <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  ), [images, columns]);
-
   if (loading && images.length === 0) {
     return (
       <div className="space-y-4">
@@ -373,7 +307,68 @@ export function ImageGallery({ refreshTrigger, columns = 4 }: ImageGalleryProps)
       )}
       
       {/* Use memoized gallery to prevent unnecessary re-renders */}
-      {imageGallery}
+      <div className={`grid grid-cols-${columns === 2 ? '2' : '1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4'} gap-2 md:gap-4`}>
+        {images.map((image) => {
+          // Transform the image URL for thumbnails
+          const thumbnailUrl = getTransformedImageUrl(image.url, {
+            width: 400,
+            height: 400,
+            quality: 80,
+            format: 'webp',
+            resize: 'cover'
+          });
+          
+          return (
+            <div 
+              key={image.id} 
+              className="relative group overflow-hidden rounded-lg shadow-sm transition-all duration-200 hover:shadow-md"
+            >
+              <div className="aspect-square w-full h-full bg-background">
+                <img
+                  src={thumbnailUrl} 
+                  alt={image.prompt}
+                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                  loading="lazy"
+                  decoding="async"
+                  srcSet={`
+                    ${getTransformedImageUrl(image.url, { width: 200, format: 'webp' })} 200w,
+                    ${getTransformedImageUrl(image.url, { width: 400, format: 'webp' })} 400w,
+                    ${getTransformedImageUrl(image.url, { width: 600, format: 'webp' })} 600w
+                  `}
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                />
+              </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end">
+                <div className="p-2 md:p-4 space-y-1">
+                  <h3 className="text-white font-medium text-xs md:text-sm line-clamp-1">{image.prompt}</h3>
+                  <div className="flex justify-between mt-1 md:mt-2">
+                    <Button 
+                      size="sm" 
+                      variant="secondary"
+                      className="rounded-full shadow-lg text-xs h-7 px-2 md:h-8 md:px-3"
+                      onClick={() => setSelectedImage(image)}
+                    >
+                      <Eye className="h-3 w-3 md:h-4 md:w-4 mr-1" />
+                      View
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="destructive"
+                      className="rounded-full shadow-lg h-7 w-7 p-0 md:h-8 md:w-8"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        confirmDelete(image);
+                      }}
+                    >
+                      <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
       
       {/* Load more button */}
       {hasMore && (
