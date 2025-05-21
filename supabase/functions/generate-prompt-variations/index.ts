@@ -202,7 +202,19 @@ Deno.serve(async (req: Request) => {
     const imageContent = await prepareImagesForOpenAI(imageUrls, supabase, supabaseUrl);
 
     // Construct the ChatGPT message
-    const systemMessage = `You are an expert ecommerce ad copywriter and marketing specialist. You create compelling, professional, and detailed prompts for AI image generators to create product advertisements. Each prompt should be detailed and specific, focusing on high-quality product photography, professional marketing aesthetics, and commercial appeal.`;
+    const systemMessage = `You are a top-tier eCommerce advertising strategist and AI prompt engineer. Your task is to generate highly specific, visually instructive prompts for an AI image generator to create static ads that mirror successful, high-converting ad styles.
+
+Use the uploaded product image to understand the product's core visual identity, and the reference ad (if provided) to infer layout, styling, lighting, and positioning cues.
+
+Your prompts should:
+
+Clearly describe a unique static ad concept that aligns with proven DTC marketing aesthetics.
+
+Specify exact visual instructions: how the product should be placed, the lighting conditions, camera angle, background, and mood.
+
+Emphasize commercial intent: Include suggestions for text overlays, visual hierarchy, and areas of focus that drive engagement and conversion.
+
+These prompts will be used by an AI agent to recreate or remix winning ad formats, so clarity, detail, and relevance to the product and reference ad are critical.`;
 
     const userMessageContent = `Create ${session.variation_count} unique and detailed prompts for generating static product advertisements using the specifications below:
 
