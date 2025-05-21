@@ -65,7 +65,15 @@ export const usePostHog = () => {
       identify: identifyUser,
       reset: resetUser,
       track: trackEvent,
-      posthog
+      posthog,
+      isFeatureEnabled: (key: string, defaultValue: boolean = false) => {
+        if (!POSTHOG_KEY) return defaultValue
+        return posthog.isFeatureEnabled(key) ?? defaultValue
+      },
+      getFeatureFlag: (key: string, defaultValue: any = undefined) => {
+        if (!POSTHOG_KEY) return defaultValue
+        return posthog.getFeatureFlag(key) ?? defaultValue
+      }
     }
   }, [])
 }
