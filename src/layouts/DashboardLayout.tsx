@@ -72,6 +72,14 @@ export default function DashboardLayout() {
         // Only load counts after a delay
         setTimeout(() => {
           if (isMounted) {
+            // Get count of images
+            supabase
+              .from('images')
+              .select('id', { count: 'exact', head: true })
+              .then(({ count }) => {
+                if (isMounted) setImageCount(count || 0);
+              });
+            
             // Get library count from assets table (replacing library_images)
             supabase
               .from('assets')
@@ -130,6 +138,38 @@ export default function DashboardLayout() {
     };
   }, []);
 
+  // Listen for navigation events
+  useEffect(() => {
+    const navigateToGallery = () => {
+      navigate('/gallery');
+    };
+    
+    const navigateToGenerate = () => {
+      navigate('/photoshoot');
+    };
+    
+    const navigateToShopifySettings = () => {
+      navigate('/settings');
+      // Wait for component to render and then switch to Shopify tab
+      setTimeout(() => {
+        const shopifyTab = document.querySelector('[data-value="shopify"]');
+        if (shopifyTab && shopifyTab instanceof HTMLElement) {
+          shopifyTab.click();
+        }
+      }, 100);
+    };
+    
+    window.addEventListener('navigateToGallery', navigateToGallery);
+    window.addEventListener('navigateToGenerate', navigateToGenerate);
+    window.addEventListener('navigateToShopifySettings', navigateToShopifySettings);
+    
+    return () => {
+      window.removeEventListener('navigateToGallery', navigateToGallery);
+      window.removeEventListener('navigateToGenerate', navigateToGenerate);
+      window.removeEventListener('navigateToShopifySettings', navigateToShopifySettings);
+    };
+  }, [navigate]);
+
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     toast.success('Signed out successfully');
@@ -173,6 +213,8 @@ export default function DashboardLayout() {
     switch (path) {
       case 'home':
         return 'Home';
+      case 'gallery':
+        return 'My creatives';
       case 'library':
         return 'Assets';
       case 'photoshoot':

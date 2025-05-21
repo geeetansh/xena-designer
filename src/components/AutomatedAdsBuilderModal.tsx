@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ChevronLeft,
@@ -8,7 +8,6 @@ import {
   Check,
   Sparkles,
   Image as ImageIcon,
-  Upload
 } from 'lucide-react';
 import { FaRegSquare } from "react-icons/fa";
 import { LuRectangleHorizontal, LuRectangleVertical } from "react-icons/lu";
@@ -25,7 +24,7 @@ import { LazyImage } from '@/components/LazyImage';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { FileUpload } from '@/components/FileUpload';
+import { ImageSelectionModal } from '@/components/ImageSelectionModal';
 import {
   Select,
   SelectContent,
@@ -77,7 +76,10 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
   const [userCredits, setUserCredits] = useState<number | null>(null);
   const [checkingCredits, setCheckingCredits] = useState(false);
   const [insufficientCredits, setInsufficientCredits] = useState(false);
-  const [fileUploadKey, setFileUploadKey] = useState(0); // Used to reset FileUpload component
+
+  // Modal states
+  const [isProductSelectorOpen, setIsProductSelectorOpen] = useState(false);
+  const [isReferenceSelectorOpen, setIsReferenceSelectorOpen] = useState(false);
 
   // Processing state
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -86,7 +88,6 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
 
   const { toast } = useToast();
   const navigate = useNavigate();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Reset the form when the modal is opened
   useEffect(() => {
@@ -102,7 +103,6 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
       setProgress(0);
       setIsSubmitting(false);
       setInsufficientCredits(false);
-      setFileUploadKey(prev => prev + 1); // Reset FileUpload component
       
       // Check user credits when modal opens
       checkCredits();
@@ -149,31 +149,6 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
     const response = await fetch(url);
     const blob = await response.blob();
     return new File([blob], filename, { type: blob.type || 'image/jpeg' });
-  };
-  
-  // Handle file selection
-  const handleProductFiles = (files: File[]) => {
-    if (files.length > 0) {
-      setProductImage(files[0]);
-      setProductImageUrl(URL.createObjectURL(files[0]));
-      
-      // Automatically proceed to next step after selecting product image
-      if (currentStep === 1) {
-        setCurrentStep(2);
-      }
-    }
-  };
-  
-  const handleReferenceFiles = (files: File[]) => {
-    if (files.length > 0) {
-      setReferenceAd(files[0]);
-      setReferenceAdUrl(URL.createObjectURL(files[0]));
-      
-      // Automatically proceed to next step after selecting reference image
-      if (currentStep === 2) {
-        setCurrentStep(3);
-      }
-    }
   };
 
   // Form submission handler
@@ -288,7 +263,39 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
     }
   };
 
-  // Preset product images
+  // Product image selection handler
+  const handleProductImageSelected = (file: File | null, url: string | null) => {
+    if (file) {
+      setProductImage(file);
+      setProductImageUrl(URL.createObjectURL(file));
+    } else if (url) {
+      setProductImage(null);
+      setProductImageUrl(url);
+    }
+    
+    // Automatically proceed to next step after selecting product image
+    if (currentStep === 1) {
+      setCurrentStep(2);
+    }
+  };
+  
+  // Reference image selection handler
+  const handleReferenceImageSelected = (file: File | null, url: string | null) => {
+    if (file) {
+      setReferenceAd(file);
+      setReferenceAdUrl(URL.createObjectURL(file));
+    } else if (url) {
+      setReferenceAd(null);
+      setReferenceAdUrl(url);
+    }
+    
+    // Automatically proceed to next step after selecting reference image
+    if (currentStep === 2) {
+      setCurrentStep(3);
+    }
+  };
+
+  // Pre-set product images
   const presetProductImages = [
     {
       url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/6825431e0e40163357b11503_tshirt.png",
@@ -328,7 +335,7 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
     }
   ];
   
-  // Preset reference images
+  // Pre-set reference images
   const presetReferenceImages = [
     {
       url: "https://cdn.prod.website-files.com/66f5c4825781318ac4e139f1/682556b21e23d6f431c8259e_reference%20scene%205.png",
@@ -388,7 +395,7 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
     }
   ];
   
-  // Handle preset product image selection
+  // Handle preset image selection
   const handlePresetProductImageSelected = (url: string) => {
     setProductImage(null);
     setProductImageUrl(url);
@@ -506,7 +513,7 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
                 <div className="flex justify-center gap-2">
                   <Button 
                     variant="outline" 
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => setIsProductSelectorOpen(true)}
                     size="sm"
                     className="text-xs md:text-sm h-8 md:h-10"
                   >
@@ -525,18 +532,6 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
                     Remove
                   </Button>
                 </div>
-                <input 
-                  type="file"
-                  ref={fileInputRef}
-                  className="hidden"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const files = e.target.files;
-                    if (files && files.length > 0) {
-                      handleProductFiles([files[0]]);
-                    }
-                  }}
-                />
               </div>
             ) : (
               <div className="flex flex-col items-center w-full">
@@ -547,22 +542,10 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
                     {/* Add Upload button as first grid item */}
                     <div 
                       className="aspect-square border border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer bg-muted/10 hover:bg-muted/20 transition-colors p-2 md:p-4"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() => setIsProductSelectorOpen(true)}
                     >
                       <ImageIcon className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground mb-1 md:mb-2" />
                       <span className="text-xs md:text-sm font-medium text-center">Upload Image</span>
-                      <input 
-                        type="file"
-                        ref={fileInputRef}
-                        className="hidden"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const files = e.target.files;
-                          if (files && files.length > 0) {
-                            handleProductFiles([files[0]]);
-                          }
-                        }}
-                      />
                     </div>
                     
                     {/* Add preset product images */}
@@ -600,20 +583,8 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
                 </div>
                 <div className="flex justify-center gap-2">
                   <Button 
-                    variant="outline"
-                    onClick={() => {
-                      // Create a new file input for reference files
-                      const refInput = document.createElement('input');
-                      refInput.type = 'file';
-                      refInput.accept = 'image/*';
-                      refInput.onchange = (e: any) => {
-                        const files = e.target.files;
-                        if (files && files.length > 0) {
-                          handleReferenceFiles([files[0]]);
-                        }
-                      };
-                      refInput.click();
-                    }}
+                    variant="outline" 
+                    onClick={() => setIsReferenceSelectorOpen(true)}
                     size="sm"
                     className="text-xs md:text-sm h-8 md:h-10"
                   >
@@ -642,19 +613,7 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
                     {/* Add Upload button as first grid item */}
                     <div 
                       className="aspect-square border border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer bg-muted/10 hover:bg-muted/20 transition-colors p-2 md:p-4"
-                      onClick={() => {
-                        // Create a new file input for reference files
-                        const refInput = document.createElement('input');
-                        refInput.type = 'file';
-                        refInput.accept = 'image/*';
-                        refInput.onchange = (e: any) => {
-                          const files = e.target.files;
-                          if (files && files.length > 0) {
-                            handleReferenceFiles([files[0]]);
-                          }
-                        };
-                        refInput.click();
-                      }}
+                      onClick={() => setIsReferenceSelectorOpen(true)}
                     >
                       <ImageIcon className="h-6 w-6 md:h-8 md:w-8 text-muted-foreground mb-1 md:mb-2" />
                       <span className="text-xs md:text-sm font-medium text-center">Upload Image</span>
@@ -962,6 +921,22 @@ export function AutomatedAdsBuilderModal({ open, onOpenChange, onSuccess }: Auto
           </div>
         </DialogFooter>
       </DialogContent>
+      
+      {/* Image selection modals */}
+      <ImageSelectionModal
+        open={isProductSelectorOpen}
+        onOpenChange={setIsProductSelectorOpen}
+        onImageSelected={handleProductImageSelected}
+        title="Product Image"
+        isProduct={true}
+      />
+      
+      <ImageSelectionModal
+        open={isReferenceSelectorOpen}
+        onOpenChange={setIsReferenceSelectorOpen}
+        onImageSelected={handleReferenceImageSelected}
+        title="Reference Ad"
+      />
     </Dialog>
   );
 }

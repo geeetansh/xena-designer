@@ -3,10 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, CreditCard, CheckCircle, AlertCircle, Coins } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getUserOrders, formatCurrency } from '@/services/stripeService';
+import { getUserSubscription, getUserOrders, formatCurrency, getUserCredits } from '@/services/stripeService';
 import { getProductByPriceId } from '@/stripe-config';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/lib/supabase';
 
 export function SubscriptionSettings() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -24,22 +23,9 @@ export function SubscriptionSettings() {
         const ordersData = await getUserOrders();
         setOrders(ordersData || []);
         
-        // Fetch user's current credits directly from user_profiles
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (user) {
-          const { data, error } = await supabase
-            .from('user_profiles')
-            .select('credits')
-            .eq('user_id', user.id)
-            .single();
-            
-          if (!error && data) {
-            setCurrentCredits(data.credits);
-          } else {
-            console.error('Error fetching credits:', error);
-          }
-        }
+        // Fetch user's current credits
+        const credits = await getUserCredits();
+        setCurrentCredits(credits);
       } catch (error) {
         console.error('Error fetching subscription data:', error);
         toast({
