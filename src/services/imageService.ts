@@ -467,6 +467,7 @@ export async function generateImage(
         user_id: session.user.id,
         prompt,
         status: "pending",
+        reference_image_urls: allReferenceImageUrls,
         batch_id: variationGroupId,
         total_in_batch: variants,
         batch_index: i
@@ -1003,5 +1004,138 @@ export async function saveGeneratedImage(
   } catch (error) {
     console.error('Error in saveGeneratedImage:', error);
     throw error;
+  }
+}
+
+// Edit a generated image using the OpenAI API
+export async function editGeneratedImage(
+  originalImageUrl: string,
+  editPrompt: string
+): Promise<{ url: string | null; success: boolean; error?: string }> {
+  startOperation(`Editing image with prompt: "${editPrompt.substring(0, 50)}${editPrompt.length > 50 ? '...' : ''}"`);
+  const startTime = Date.now();
+  
+  // First check if user has credits
+  const { hasCredits, credits } = await checkUserCredits();
+  
+  if (!hasCredits) {
+    throw new Error('You have no credits remaining. Please purchase more credits to edit images.');
+  }
+  
+  // Ensure the storage bucket exists
+  await ensureStorageBucket('images');
+  
+  // Track the image editing attempt
+  trackEvent('image_edit_started', {
+    prompt: editPrompt.substring(0, 100),
+  });
+  
+  // Get the current session for authorization
+  const { data: { session } } = await supabase.auth.getSession();
+  
+  if (!session) {
+    throw new Error('User not authenticated');
+  }
+  
+  try {
+    // Call the edge function to edit the image
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    startOperation(`Calling edit-image function with prompt`);
+    
+    // Generate a unique ID for this edit
+    const editId = uuidv4();
+    
+    // Deduct a credit for the edit operation
+    await deductUserCredit(1);
+    
+    try {
+      const response = await fetch(`${supabaseUrl}/functions/v1/edit-image`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+          'X-Client-Info': 'supabase-js/2.x'
+        },
+        body: JSON.stringify({
+          image_url: originalImageUrl,
+          prompt: editPrompt,
+          edit_id: editId
+        })
+      });
+      
+      if (!response.ok) {
+        // Try to get detailed error information
+        let errorDetails = '';
+        try {
+          const errorData = await response.json();
+          errorDetails = errorData.error || errorData.message || '';
+        } catch (e) {
+          // If JSON parsing fails, use the status text
+          errorDetails = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        
+        logError(`Edge function error response: ${errorDetails}`);
+        
+        // Track error event
+        trackEvent('image_edit_error', {
+          error: errorDetails,
+          status: response.status,
+          prompt_length: editPrompt.length
+        });
+        
+        return {
+          url: null,
+          success: false,
+          error: `Error editing image: ${errorDetails}`
+        };
+      }
+      
+      const data = await response.json();
+      console.log(`Received response from edge function:`, data);
+      
+      if (data.url) {
+        // Track successful edit
+        trackEvent('image_edit_completed', {
+          prompt_length: editPrompt.length,
+          generation_time_ms: Date.now() - startTime
+        });
+        
+        endOperation(`Image edit completed`, startTime);
+        
+        return {
+          url: data.url,
+          success: true
+        };
+      } else {
+        return {
+          url: null,
+          success: false,
+          error: data.error || 'Failed to get edited image URL'
+        };
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      logError(`Error in fetch operation: ${errorMsg}`);
+      
+      // Track error by type
+      trackEvent('image_edit_error', {
+        error_type: error.name || 'Unknown',
+        error_message: errorMsg.substring(0, 100)
+      });
+      
+      return {
+        url: null,
+        success: false,
+        error: `Error editing image: ${errorMsg}`
+      };
+    }
+  } catch (error) {
+    logError(`Error in image editing process: ${error instanceof Error ? error.message : String(error)}`);
+    
+    return {
+      url: null,
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
   }
 }
