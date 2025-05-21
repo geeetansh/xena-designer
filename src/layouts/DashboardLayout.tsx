@@ -200,8 +200,6 @@ export default function DashboardLayout() {
         return 'Home';
       case 'library':
         return 'Assets';
-      case 'photoshoot':
-        return 'Photoshoots';
       case 'automate':
         return 'Static ad';
       case 'products':

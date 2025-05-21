@@ -14,7 +14,6 @@ import ResetPasswordPage from '@/pages/ResetPasswordPage';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import HomePage from '@/pages/HomePage';
 import LibraryPage from '@/pages/LibraryPage';
-import PhotoshootPage from '@/pages/PhotoshootPage';
 import AutomatePage from '@/pages/AutomatePage';
 import AutomationBuilderPage from '@/pages/AutomationBuilderPage';
 import SettingsPage from '@/pages/SettingsPage';
