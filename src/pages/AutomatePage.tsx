@@ -84,8 +84,7 @@ export default function AutomatePage() {
             automation_sessions(
               product_image_url,
               reference_ad_url,
-              created_at,
-              layout
+              created_at
             )
           )
         `)
@@ -167,14 +166,12 @@ export default function AutomatePage() {
           columnClassName="pl-4 bg-clip-padding"
         >
           {generationJobs.map((job) => {
-            const layout = job.prompt_variations?.automation_sessions?.layout || 'auto';
-            
             return (
               <div 
                 key={job.id}
                 className="mb-4 relative group overflow-hidden rounded-lg shadow-sm transition-all duration-200 hover:shadow-md"
               >
-                <div className={`w-full ${layout === 'portrait' ? 'aspect-[2/3]' : layout === 'landscape' ? 'aspect-[3/2]' : 'aspect-square'} bg-background`}>
+                <div className="w-full aspect-square bg-background">
                   {job.status === 'failed' ? (
                     <div className="w-full h-full flex items-center justify-center bg-red-50/50 dark:bg-red-900/10">
                       <div className="flex flex-col items-center text-center p-4">
@@ -219,7 +216,7 @@ export default function AutomatePage() {
       {/* Image Details Dialog */}
       <Dialog open={isJobDetailsOpen} onOpenChange={setIsJobDetailsOpen}>
         {selectedJob && (
-          <DialogContent className="max-w-4xl md:max-w-5xl sm:max-w-[80%] p-0 overflow-hidden flex flex-col max-h-[90vh]">
+          <DialogContent className="max-w-4xl md:max-w-5xl sm:max-w-[60%] p-0 overflow-hidden flex flex-col max-h-[90vh]">
             <DialogHeader className="px-4 pt-4">
               <DialogTitle className="text-xl">Ad Details</DialogTitle>
             </DialogHeader>
@@ -281,7 +278,7 @@ export default function AutomatePage() {
                   {/* Reference Images */}
                   {selectedJob.prompt_variations && (
                     <div className="space-y-2">
-                      <h3 className="font-medium">Reference Images</h3>
+                      <h4 className="font-medium">Reference Images</h4>
                       <div className="grid grid-cols-2 gap-3">
                         {/* Product Image */}
                         {selectedJob.prompt_variations.automation_sessions?.product_image_url && (

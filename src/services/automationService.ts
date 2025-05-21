@@ -13,7 +13,6 @@ export interface AutomationSession {
   status: string;
   created_at: string;
   updated_at: string;
-  layout?: string;
 }
 
 export interface PromptVariation {
@@ -182,42 +181,37 @@ export async function createAutomationSession(
       throw new Error(`Failed to deduct credits: ${deductError.message}`);
     }
     
-    // Now call the edge function to create a session
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-automation-session`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        productImageUrl,
-        brandLogoUrl: brandLogoUrl || null,
-        referenceAdUrl: referenceAdUrl || null,
+    // Create a new session directly in the database
+    const { data, error } = await supabase
+      .from('automation_sessions')
+      .insert({
+        user_id: session.user.id,
+        product_image_url: productImageUrl,
+        brand_logo_url: brandLogoUrl || null,
+        reference_ad_url: referenceAdUrl || null,
         instructions: instructions || null,
-        variationCount,
-        layout
-      }),
-    });
+        variation_count: variationCount,
+        status: 'draft'
+      })
+      .select('id')
+      .single();
     
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to create automation session');
+    if (error) {
+      console.error('Error creating automation session:', error);
+      throw new Error(`Failed to create automation session: ${error.message}`);
     }
-    
-    const { session: createdSession } = await response.json();
     
     // Track the event
     trackEvent('automation_session_created', {
-      session_id: createdSession.id,
+      session_id: data.id,
       variation_count: variationCount,
-      layout,
       has_brand_logo: !!brandLogoUrl,
       has_reference_ad: !!referenceAdUrl,
       has_instructions: !!instructions,
       credits_used: variationCount
     });
     
-    return createdSession.id;
+    return data.id;
   } catch (error) {
     console.error('Error creating automation session:', error);
     throw error;
