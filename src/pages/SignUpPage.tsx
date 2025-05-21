@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -7,6 +7,7 @@ import { Eye, EyeOff, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { trackEvent } from '@/lib/posthog';
+import { FcGoogle } from "react-icons/fc";
 
 import {
   Card,
@@ -64,13 +65,18 @@ const signUpSchema = z.object({
 type SignUpFormValues = z.infer<typeof signUpSchema>;
 
 export default function SignUpPage() {
+  const [searchParams] = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
+
+  // Check if there's a redirectUrl in the query parameters
+  const redirectUrl = searchParams.get('redirectTo') || '/dashboard';
 
   const form = useForm<SignUpFormValues>({
     resolver: zodResolver(signUpSchema),
@@ -104,7 +110,7 @@ export default function SignUpPage() {
         email: values.email,
         password: values.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/dashboard`,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         }
       });
       
@@ -139,6 +145,30 @@ export default function SignUpPage() {
       console.error('Sign up error:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+  
+  const handleGoogleSignUp = async () => {
+    try {
+      setIsGoogleLoading(true);
+      trackEvent('signup_started', { provider: 'google' });
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+      
+      if (error) throw error;
+      
+      // No toast needed as user will be redirected
+      trackEvent('signup_redirect', { provider: 'google' });
+    } catch (error: any) {
+      setIsGoogleLoading(false);
+      toast.error(error.message || 'Failed to sign up with Google');
+      trackEvent('signup_failed', { provider: 'google', reason: error.message });
+      console.error('Google signup error:', error);
     }
   };
   
@@ -217,6 +247,33 @@ export default function SignUpPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {/* Google Sign Up Button */}
+            <div className="grid gap-2 mb-4">
+              <Button
+                variant="outline" 
+                onClick={handleGoogleSignUp}
+                disabled={isGoogleLoading}
+                className="w-full"
+              >
+                {isGoogleLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <FcGoogle className="mr-2 h-5 w-5" />
+                )}
+                Continue with Google
+              </Button>
+            </div>
+            
+            {/* Separator */}
+            <div className="relative mb-4">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t"></span>
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+              </div>
+            </div>
+
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField

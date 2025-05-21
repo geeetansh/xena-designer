@@ -76,12 +76,16 @@ function App() {
           
           // If we have a user, identify them in PostHog
           if (data.session.user) {
+            // Get user's auth provider
+            const provider = data.session.user.app_metadata?.provider || 'email';
+            
             identifyUser(data.session.user.id, {
               email: data.session.user.email,
+              provider: provider
             });
             
             // Track login event
-            trackEvent('session_restored');
+            trackEvent('session_restored', { provider: provider });
           }
         }
       } catch (error) {
@@ -120,13 +124,17 @@ function App() {
           
           // Identify user in PostHog
           if (newSession?.user) {
+            // Get user's auth provider
+            const provider = newSession.user.app_metadata?.provider || 'email';
+            
             identifyUser(newSession.user.id, {
               email: newSession.user.email,
+              provider: provider
             });
             
             // Track sign-in event
             if (event === 'SIGNED_IN') {
-              trackEvent('user_signed_in');
+              trackEvent('user_signed_in', { provider: provider });
             }
           }
         }
@@ -207,6 +215,12 @@ function App() {
           {/* Redirect root path to login */}
           <Route path="/" element={<Navigate to="/login" replace />} />
           
+          {/* Handle OAuth callbacks */}
+          <Route 
+            path="/auth/callback" 
+            element={session ? <Navigate to="/home" replace /> : <Navigate to="/login" replace />} 
+          />
+
           {/* Public routes */}
           <Route path="/verify" element={<EmailVerificationPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />

@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, AlertTriangle, Mail } from 'lucide-react';
+import { Loader2, AlertTriangle, Mail, Lock } from 'lucide-react';
+import { FcGoogle } from "react-icons/fc";
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -19,6 +20,7 @@ import {
   AlertDescription,
   AlertTitle,
 } from '@/components/ui/alert';
+import { trackEvent } from '@/lib/posthog';
 
 interface UserAuthFormProps {
   onAuthSuccess: () => void;
@@ -28,6 +30,7 @@ export function UserAuthForm({ onAuthSuccess }: UserAuthFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [showEmailVerificationAlert, setShowEmailVerificationAlert] = useState(false);
   const { toast } = useToast();
 
@@ -113,6 +116,32 @@ export function UserAuthForm({ onAuthSuccess }: UserAuthFormProps) {
       setIsLoading(false);
     }
   };
+  
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsGoogleLoading(true);
+      trackEvent('auth_google_signin_attempt');
+      
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+      
+      if (error) throw error;
+      
+      // No need for success toast as user will be redirected
+    } catch (error) {
+      setIsGoogleLoading(false);
+      trackEvent('auth_google_signin_error', { error: error instanceof Error ? error.message : String(error) });
+      toast({
+        title: "Google sign in failed",
+        description: error instanceof Error ? error.message : "Unable to sign in with Google",
+        variant: "destructive"
+      });
+    }
+  };
 
   // Function to resend verification email
   const handleResendVerification = async () => {
@@ -185,6 +214,33 @@ export function UserAuthForm({ onAuthSuccess }: UserAuthFormProps) {
             </Alert>
           )}
           
+          {/* Google Sign In Button (shown on both tabs) */}
+          <div className="mb-4">
+            <Button
+              variant="outline"
+              className="w-full flex items-center justify-center gap-2"
+              onClick={handleGoogleSignIn}
+              disabled={isGoogleLoading}
+            >
+              {isGoogleLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FcGoogle className="h-5 w-5" />
+              )}
+              <span>Continue with Google</span>
+            </Button>
+          </div>
+          
+          {/* Separator */}
+          <div className="relative mb-4">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t"></span>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+            </div>
+          </div>
+          
           <TabsContent value="signin">
             <form onSubmit={handleSignIn} className="space-y-4">
               <div className="space-y-2">
@@ -221,7 +277,10 @@ export function UserAuthForm({ onAuthSuccess }: UserAuthFormProps) {
                     Signing in...
                   </>
                 ) : (
-                  'Sign In'
+                  <>
+                    <Lock className="mr-2 h-4 w-4" />
+                    Sign In with Email
+                  </>
                 )}
               </Button>
             </form>
@@ -272,7 +331,10 @@ export function UserAuthForm({ onAuthSuccess }: UserAuthFormProps) {
                     Creating account...
                   </>
                 ) : (
-                  'Sign Up'
+                  <>
+                    <Mail className="mr-2 h-4 w-4" />
+                    Sign Up with Email
+                  </>
                 )}
               </Button>
             </form>

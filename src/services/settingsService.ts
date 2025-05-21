@@ -141,7 +141,7 @@ export async function saveUserSettings(settings: any): Promise<boolean> {
       .from('user_settings')
       .select('id')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
     
     if (existingSettings) {
       // Update existing settings

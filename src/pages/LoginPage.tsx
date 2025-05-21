@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -32,6 +32,7 @@ import {
   AlertTitle,
 } from '@/components/ui/alert';
 import { OtpVerificationModal } from '@/components/OtpVerificationModal';
+import { FcGoogle } from "react-icons/fc";
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -41,11 +42,16 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
+  const [searchParams] = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
   const [unverifiedEmail, setUnverifiedEmail] = useState('');
   const navigate = useNavigate();
+
+  // Check if there's a redirectUrl in the query parameters
+  const redirectUrl = searchParams.get('redirectTo') || '/dashboard';
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -94,12 +100,36 @@ export default function LoginPage() {
       trackEvent('login_success');
       
       toast.success('Logged in successfully!');
-      navigate('/dashboard');
+      navigate(redirectUrl);
     } catch (error: any) {
       toast.error(error.message || 'An error occurred during login');
       console.error('Login error:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsGoogleLoading(true);
+      trackEvent('login_attempt', { provider: 'google' });
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+      
+      if (error) throw error;
+      
+      // No toast needed here as user will be redirected
+      trackEvent('login_redirect', { provider: 'google' });
+    } catch (error: any) {
+      setIsGoogleLoading(false);
+      toast.error(error.message || 'Failed to sign in with Google');
+      trackEvent('login_failed', { provider: 'google', reason: error.message });
+      console.error('Google login error:', error);
     }
   };
 
@@ -135,7 +165,34 @@ export default function LoginPage() {
               Log in to your Xena AI account
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* Google Sign In Button */}
+            <div className="grid gap-2">
+              <Button
+                variant="outline" 
+                onClick={handleGoogleSignIn}
+                disabled={isGoogleLoading}
+                className="w-full"
+              >
+                {isGoogleLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <FcGoogle className="mr-2 h-5 w-5" />
+                )}
+                Continue with Google
+              </Button>
+            </div>
+            
+            {/* Separator */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t"></span>
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+              </div>
+            </div>
+
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField
