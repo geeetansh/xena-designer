@@ -135,12 +135,7 @@ export function ImageDetails({ open, onOpenChange, image }: ImageDetailsProps) {
                   </div>
                 </div>
                 
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Prompt</h3>
-                  <div className="bg-muted/20 rounded-lg p-3 border">
-                    <p className="whitespace-pre-line text-sm">{image.prompt}</p>
-                  </div>
-                </div>
+                {/* Removed the Prompt section as requested */}
                 
                 {/* Edited Images List */}
                 {magicEditEnabled && (
