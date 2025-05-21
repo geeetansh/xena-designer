@@ -21,22 +21,32 @@ export interface PromptTemplate {
 
 // Default values for prompt template properties
 export const defaultPromptTemplateProperties: PromptTemplateProperties = {
-  temperature: 0.7,
+  temperature: 0.9,
   max_tokens: 150,
-  top_p: 0.9, 
+  top_p: 0.7, 
   frequency_penalty: 0.5,
   presence_penalty: 0.5
 };
 
 // Default base prompt text
 export const defaultBasePromptText = 
-`Create a professional advertisement featuring the provided product.
-Include the following elements:
-- Clean, professional composition
-- Vibrant colors and clear product focus
-- Modern design aesthetics appropriate for digital marketing
-- Natural context or environment for the product
-- Subtle branding elements (if applicable)`;
+`You are an expert ecommerce ad copywriter and marketing specialist. You create compelling, professional, and detailed prompts for AI image generators to create product advertisements. Each prompt should be detailed and specific, focusing on high-quality product photography, professional marketing aesthetics, and commercial appeal.
+
+Create ${variation_count} different, 
+detailed prompts for generating product advertisements with these specifications:
+
+Product Image: ${product_image_url}
+${brand_logo_url ? \`Brand Logo: ${brand_logo_url}\` : ''}
+${reference_ad_url ? \`Reference Ad Style: ${reference_ad_url}\` : ''}
+${instructions ? \`Additional Instructions: ${instructions}\` : ''}
+
+Use the product and reference ad attached image thoroughly to come up with a prompt. The goal is to create variations of a successful ad attached as reference.
+
+Each prompt should:
+1. Detail a unique ad concept and style
+2. Specify how the product should be presented
+3. Describe lighting, background, and overall composition
+4. Include marketing-oriented details like suggested text positioning or themes`;
 
 /**
  * Check if the prompt editor feature flag is enabled

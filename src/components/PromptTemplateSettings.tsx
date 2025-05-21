@@ -204,17 +204,6 @@ export function PromptTemplateSettings() {
     }
   };
   
-  // Getting current values for preview
-  const currentValues = form.watch();
-
-  // Preview state (placeholder for now, in a real implementation this would show a preview)
-  const [previewPrompt, setPreviewPrompt] = useState<string>('');
-  
-  // Update preview when form values change
-  useEffect(() => {
-    setPreviewPrompt(currentValues.base_prompt_text);
-  }, [currentValues]);
-  
   if (isLoading) {
     return (
       <Card>
@@ -274,7 +263,6 @@ export function PromptTemplateSettings() {
           <TabsList className="mb-4">
             <TabsTrigger value="editor">Prompt Editor</TabsTrigger>
             <TabsTrigger value="parameters">Parameters</TabsTrigger>
-            <TabsTrigger value="preview">Preview</TabsTrigger>
           </TabsList>
           
           <Form {...form}>
@@ -297,8 +285,9 @@ export function PromptTemplateSettings() {
                                   </Button>
                                 </TooltipTrigger>
                                 <TooltipContent className="max-w-[300px]">
-                                  <p>This is the base prompt that will be used to generate images. 
-                                  Be specific about composition, lighting, and style.</p>
+                                  <p>This is the base prompt that will be used to generate variations. 
+                                  You can use the following variables: ${variation_count}, ${product_image_url}, 
+                                  ${brand_logo_url}, ${reference_ad_url}, ${instructions}</p>
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
@@ -311,7 +300,12 @@ export function PromptTemplateSettings() {
                             />
                           </FormControl>
                           <FormDescription>
-                            The base prompt template for generating variant prompts
+                            The base prompt template for generating variant prompts. Available variables: 
+                            <code className="ml-1 text-xs">$&#123;variation_count&#125;</code>,
+                            <code className="ml-1 text-xs">$&#123;product_image_url&#125;</code>,
+                            <code className="ml-1 text-xs">$&#123;brand_logo_url&#125;</code>,
+                            <code className="ml-1 text-xs">$&#123;reference_ad_url&#125;</code>,
+                            <code className="ml-1 text-xs">$&#123;instructions&#125;</code>
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -476,40 +470,6 @@ export function PromptTemplateSettings() {
                     </div>
                   </ResizablePanel>
                 </TabsContent>
-                
-                <TabsContent value="preview" className="mt-0 h-full">
-                  <div className="border rounded-md p-4 bg-muted/20 min-h-[300px] h-full">
-                    <h3 className="text-sm font-medium mb-2">Prompt Preview</h3>
-                    <div className="whitespace-pre-wrap text-sm font-mono">
-                      {previewPrompt}
-                    </div>
-                    <div className="mt-4 border-t pt-4">
-                      <h4 className="text-sm font-medium mb-2">Settings Summary</h4>
-                      <div className="text-xs space-y-1">
-                        <div className="flex justify-between">
-                          <span>Temperature:</span>
-                          <span>{currentValues.temperature.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Max Tokens:</span>
-                          <span>{currentValues.max_tokens}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Top P:</span>
-                          <span>{currentValues.top_p.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Frequency Penalty:</span>
-                          <span>{currentValues.frequency_penalty.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Presence Penalty:</span>
-                          <span>{currentValues.presence_penalty.toFixed(2)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
               </ResizablePanelGroup>
               
               <div className="flex justify-end space-x-2 mt-6">
@@ -536,7 +496,7 @@ export function PromptTemplateSettings() {
       </CardContent>
       <CardFooter className="border-t pt-4">
         <p className="text-xs text-muted-foreground">
-          These settings control how AI generates prompt variations. Changes will apply to all new generated prompts.
+          These settings control how AI generates prompt variations. Custom properties like variation_count, product_image_url, etc. will be automatically replaced with actual values.
         </p>
       </CardFooter>
     </Card>
