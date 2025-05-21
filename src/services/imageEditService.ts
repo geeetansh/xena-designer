@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { usePostHog } from '@/lib/posthog';
+import { isFeatureFlagEnabled } from '@/lib/posthog';
 import { log, error as logError, success } from '@/lib/logger';
 
 /**
@@ -21,8 +21,8 @@ export interface EditedImage {
  * Check if magic edit feature is enabled for current user
  */
 export function isMagicEditEnabled(): boolean {
-  const { posthog } = usePostHog();
-  return posthog.isFeatureEnabled('magic-editing') || false;
+  // Use the direct function instead of the hook
+  return isFeatureFlagEnabled('magic-editing', false);
 }
 
 /**

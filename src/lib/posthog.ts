@@ -23,8 +23,18 @@ export const initPostHog = () => {
     capture_pageleave: true, // Capture when users leave the page
     autocapture: true, // Automatically capture clicks, form submissions, etc.
     persistence: 'localStorage', // Use localStorage to persist the distinct_id
+    bootstrap: {
+      // Ensure feature flags are loaded immediately on init
+      featureFlags: {
+        // Default feature flags can be set here
+        'magic-editing': false
+      }
+    },
     loaded: (posthog) => {
       console.log('PostHog loaded successfully')
+      
+      // Request a refresh of feature flags
+      posthog.reloadFeatureFlags()
       
       // If we're in development, optionally disable capturing
       if (import.meta.env.DEV) {
@@ -57,6 +67,12 @@ export const trackEvent = (eventName: string, properties?: Record<string, any>) 
   
   posthog.capture(eventName, properties)
   console.log(`Tracked event: ${eventName}`, properties)
+}
+
+// Direct access to check if a feature flag is enabled (for non-component code)
+export const isFeatureFlagEnabled = (key: string, defaultValue = false): boolean => {
+  if (!POSTHOG_KEY) return defaultValue
+  return posthog.isFeatureEnabled(key) ?? defaultValue
 }
 
 export const usePostHog = () => {
