@@ -24,7 +24,6 @@ import { IoSettingsOutline } from "react-icons/io5";
 import { LuLibrary } from "react-icons/lu";
 
 export default function DashboardLayout() {
-  const [imageCount, setImageCount] = useState(0);
   const [libraryCount, setLibraryCount] = useState(0);
   const [staticAdCount, setStaticAdCount] = useState(0);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
