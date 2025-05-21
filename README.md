@@ -6,7 +6,11 @@ Xena is an AI-powered ecommerce creative generation platform that helps business
 
 - **AI Image Generation**: Transform product photos into professional marketing assets
 - **Multi-Variant Generation**: Create multiple design variations in a single request
-- **Shopify Integration**: Seamless connection to import product data and images
+- **Automated Ad Creation**: Generate entire ad campaigns with a single click
+- **Image Editing**: Suggest changes to existing generated ads (feature flagged)
+- **Shopify Integration**: 
+  - Storefront API - Basic product image import
+  - Admin API - Enhanced integration for complete store access (New)
 - **Creative Management**: Organize and categorize your generated images
 - **Reference Image Library**: Store and reuse creative inspiration
 - **User Management**: Complete authentication with email verification
@@ -74,15 +78,27 @@ The application uses a relational database with the following key tables:
    - Stores access tokens securely
    - Links to user accounts
 
-7. **shopify_products**: Caches product data from connected stores
+7. **shopify_admin_credentials**: Manages enhanced Shopify Admin API integration (New)
+   - Provides access to complete store data
+   - Securely stores OAuth tokens
+
+8. **shopify_products**: Caches product data from connected stores
    - Stores product details and images
    - Automatically updated on sync
 
-8. **automation_sessions**: Manages automated ad generation
+9. **automation_sessions**: Manages automated ad generation
    - Stores session details and parameters
    - Links to prompt variations and generation jobs
 
-9. **stripe_customers/subscriptions/orders**: Manages payment information
+10. **prompt_variations**: Stores AI-generated prompt variations for ads
+    - Connected to automation sessions
+    - Tracks status of prompt generation
+
+11. **generation_jobs**: Tracks individual generation jobs for prompt variations
+    - Manages status and results
+    - Handles error states
+
+12. **stripe_customers/subscriptions/orders**: Manages payment information
    - Links users to Stripe customers
    - Tracks purchases and credits
 
@@ -93,6 +109,7 @@ The application leverages several Supabase features:
 1. **Authentication**: Email/password authentication with OTP verification
    - Secure token-based auth
    - Password reset functionality
+   - Google OAuth integration
 
 2. **Storage**: Multiple storage buckets for different asset types
    - Images, user uploads, and Shopify product images
@@ -103,6 +120,8 @@ The application leverages several Supabase features:
    - `process-generation-task`: Handles individual image generation tasks
    - `monitor-batch-tasks`: Monitors and restarts stalled generation jobs
    - `generate-prompt-variations`: Creates AI-powered ad copy variations
+   - `process-generation-job`: Processes individual generation jobs for ad campaigns
+   - `create-automation-session`: Creates new automated ad campaign sessions
    - `stripe-checkout`: Handles Stripe payment processing
    - `stripe-webhook`: Processes Stripe webhook events
 
@@ -147,14 +166,25 @@ The application uses a sophisticated image generation process:
    - Each prompt is used to create a unique ad variant
    - Results are displayed in a gallery view
 
+5. **Image Editing** (Feature Flagged):
+   - Users can suggest changes to existing generated images
+   - Changes are processed using the OpenAI gpt-image-1 model
+   - Modified images appear alongside original generations
+
 ## Shopify Integration
 
-The application connects to Shopify stores via the Storefront API:
+The application connects to Shopify stores via two methods:
 
-1. Users provide their store URL and Storefront Access Token
-2. The application queries the GraphQL API to fetch products and images
-3. Product data is cached in the database for better performance
-4. Users can select product images as references for AI generation
+1. **Storefront API**:
+   - Users provide their store URL and Storefront Access Token
+   - Basic product data and images are fetched
+   - Limited to public product catalog data
+
+2. **Admin API** (New Enhanced Integration):
+   - Complete OAuth flow for secure access
+   - Access to all store products, inventory, orders, etc.
+   - Comprehensive product data for AI image generation
+   - Secure token storage and management
 
 ## User Credits System
 
@@ -175,6 +205,14 @@ The application integrates with Stripe for payment processing:
 3. **Checkout Process**: Secure checkout via Stripe Checkout
 4. **Webhook Processing**: Automated credit allocation on successful payment
 5. **Order History**: Users can view their purchase history
+
+## Feature Flags
+
+The application uses a feature flag system to control access to new features:
+
+1. **PostHog Integration**: Feature flags are managed through PostHog
+2. **Image Editing**: Access to the image editing feature is controlled by a feature flag
+3. **Admin API Integration**: The enhanced Shopify Admin API integration visibility is controlled by a feature flag
 
 ## Development Setup
 
@@ -263,6 +301,7 @@ This project uses Supabase Storage's built-in image transformation capabilities 
 
 3. **Shopify Connection Issues**:
    - Verify Storefront API token has correct permissions
+   - For Admin API, ensure OAuth scopes are properly configured
    - Ensure store URL is correctly formatted
 
 4. **Stripe Payment Failures**:
