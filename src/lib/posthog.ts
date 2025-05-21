@@ -59,29 +59,12 @@ export const trackEvent = (eventName: string, properties?: Record<string, any>) 
   console.log(`Tracked event: ${eventName}`, properties)
 }
 
-// Helper function to check feature flags
-export const isFeatureEnabled = (flagName: string, defaultValue: boolean = false): boolean => {
-  if (!POSTHOG_KEY) return defaultValue
-  
-  const isEnabled = posthog.isFeatureEnabled(flagName)
-  return isEnabled === null ? defaultValue : isEnabled
-}
-
-// Helper function to get all enabled flags
-export const getEnabledFeatures = (): string[] => {
-  if (!POSTHOG_KEY) return []
-  
-  return posthog.getActiveFlags()
-}
-
 export const usePostHog = () => {
   return useMemo(() => {
     return {
       identify: identifyUser,
       reset: resetUser,
       track: trackEvent,
-      isFeatureEnabled,
-      getEnabledFeatures,
       posthog
     }
   }, [])
