@@ -1,0 +1,2 @@
+Always create new features with feature flags and document these flags in the readme document.
+Always create new features in a way that does not interfere with existing system unless specified.
