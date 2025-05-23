@@ -18,7 +18,6 @@ import AutomatePage from '@/pages/AutomatePage';
 import AutomationBuilderPage from '@/pages/AutomationBuilderPage';
 import SettingsPage from '@/pages/SettingsPage';
 import ProductsPage from '@/pages/ProductsPage';
-import NewAssetPage from '@/pages/NewAssetPage';
 import PricingPage from '@/pages/PricingPage';
 import CheckoutSuccessPage from '@/pages/CheckoutSuccessPage';
 
@@ -233,10 +232,6 @@ function App() {
           <Route path="/login" element={<AuthRoute><LoginPage /></AuthRoute>} />
           
           {/* Full-page editors */}
-          <Route path="/new-asset" element={
-            session ? <NewAssetPage /> : <Navigate to="/login" replace state={{ from: location }} />
-          } />
-          
           <Route path="/automation-builder" element={
             session ? <AutomationBuilderPage /> : <Navigate to="/login" replace state={{ from: location }} />
           } />
